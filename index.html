@@ -125,6 +125,11 @@ input[type=range]{width:100%;accent-color:var(--ac)}
 .card{background:var(--card);border-radius:18px;padding:30px 20px;text-align:center;min-height:240px;display:flex;flex-direction:column;justify-content:center;gap:10px}
 .card .big{font-size:38px;font-weight:700;line-height:1.25}
 .rvb{display:flex;gap:10px;margin-top:14px}.rvb .btn{flex:1}
+#selbar{position:absolute;left:0;right:0;bottom:calc(60px + var(--safe-b));display:none;justify-content:center;z-index:5}
+#selbar.on{display:flex}#selbar .btn{box-shadow:0 4px 16px #0004}
+.trq{font-size:13.5px;color:var(--mut);font-style:italic;max-height:3.2em;overflow:hidden;margin-top:6px}
+.trout{font-size:16.5px;line-height:1.55;margin:10px 0;max-height:34vh;overflow-y:auto;white-space:pre-wrap}
+select{width:100%;padding:10px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--fg);font:inherit;font-size:15px;margin:4px 0}
 </style>
 </head>
 <body>
@@ -142,6 +147,7 @@ input[type=range]{width:100%;accent-color:var(--ac)}
   </div>
   <div id="rscroll"><div id="article"></div></div>
   <div id="dict"></div>
+  <div id="selbar"></div>
   <div class="rbar bot">
     <button class="ib" data-act="older" aria-label="Báo cáo cũ hơn"><svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></button>
     <button class="ib" data-act="tts" id="ttsBtn" aria-label="Đọc to"><svg viewBox="0 0 24 24"><path d="M11 5L6 9H3v6h3l5 4zM15.5 8.5a5 5 0 010 7M18.5 5.5a9 9 0 010 13"/></svg></button>
@@ -204,7 +210,7 @@ const FONTS={
  serif:['Georgia','Georgia,"Times New Roman",serif'],
  sans:['Hệ thống','system-ui,-apple-system,"Segoe UI",Roboto,sans-serif'],
  mono:['Đơn cách','ui-monospace,Menlo,Consolas,monospace']};
-const APP_VERSION='2.0.1';
+const APP_VERSION='2.1.0';
 const DEFAULT_CLIENT_ID='261665890535-fa8n69cifr5kpr9k0qvurku6rss3kccd.apps.googleusercontent.com';/* điền Client ID vào đây để khỏi phải nhập trên điện thoại */
 const DEF={clientId:DEFAULT_CLIENT_ID,signedIn:false,theme:'sepia',custom:{bg:'#222831',fg:'#eeeeee'},font:'bevn',size:18,lh:1.75,mg:20,align:'left',awake:false,prefetch:10,lang:'vi',autoTr:true,trUrl:'',readLang:'ui'};
 let cfg=Object.assign({},DEF,LS.get('rp_cfg',{}));
@@ -540,6 +546,7 @@ function vSettings(){
  <div class="sec"><h3>Tải sẵn để đọc offline</h3>
   <div class="ctl" style="margin-top:0"><label><span>Tự tải sẵn số báo cáo mới nhất</span><span id="v-pf">${cfg.prefetch}</span></label><input type="range" min="0" max="60" step="5" value="${cfg.prefetch}" data-pf></div>
   <p><button class="btn alt" data-act="clearcache">Xóa dữ liệu đã tải</button></p></div>
+ <div class="sec"><h3>Giọng đọc</h3>${['vi','en','ja'].map(L=>{const vs=(typeof VOICES!=='undefined'?VOICES:[]).filter(v=>v.lang.toLowerCase().replace('_','-').startsWith(L));return `<label style="font-size:13px;color:var(--mut)">${{vi:'Tiếng Việt',en:'English',ja:'日本語'}[L]}</label><select data-voice="${L}"><option value="">Tự chọn</option>${vs.map(v=>`<option value="${esc(v.voiceURI)}" ${((cfg.voices||{})[L]===v.voiceURI)?'selected':''}>${esc(v.name)} (${esc(v.lang)})</option>`).join('')}</select><p style="margin:2px 0 10px"><button class="btn alt" data-act="voicetest" data-v="${L}" style="padding:6px 12px;font-size:13px">Nghe thử</button></p>`}).join('')}<p>Giọng nghe kỳ? Chọn giọng khác ở đây (nên chọn giọng có chữ Enhanced / Premium nếu máy có; tải thêm ở Cài đặt iPad → Trợ năng → Nội dung đọc → Giọng nói).</p></div>
  <div class="sec"><h3>Đồng bộ thiết bị</h3>
   ${!cfg.trUrl?`<p>Cần kết nối dịch (địa chỉ Apps Script) trước.</p>`:cfg.syncKey?`<p style="color:var(--fg)">✓ Đang đồng bộ từ vựng, dấu trang, đã đọc, vị trí đọc, thư mục và cài đặt giữa các thiết bị.</p><p id="syncst">${cfg.syncAt?'Đồng bộ lần cuối '+ago(cfg.syncAt):''}</p><div class="kv"><span>Mã đồng bộ</span><span style="color:var(--fg);font-weight:600">${esc(cfg.syncCode||'')}</span></div><p><button class="btn" data-act="syncnow">Đồng bộ ngay</button><button class="btn alt" data-act="copylink">Sao chép link cài thiết bị khác</button></p><p><button data-act="syncoff" style="color:#d33;font-size:13px">Tắt đồng bộ</button></p>`:`<p>Nhập cùng một mã trên mọi thiết bị (điện thoại, iPad…) để dùng chung dữ liệu. Mã chỉ để ghép các thiết bị với nhau, hãy đặt dài và khó đoán.</p><input type="text" id="syncc" placeholder="Mã đồng bộ" autocomplete="off"><p><button class="btn" data-act="syncon">Bật đồng bộ</button><button class="btn alt" data-act="gencode">Tạo mã ngẫu nhiên</button></p>`}</div>
  ${RT.get()&&SEC()?'':`<details class="sec"><summary style="cursor:pointer;font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:var(--mut);font-weight:600">Đăng nhập lâu dài (chưa bật)</summary>
@@ -629,9 +636,10 @@ function stopTTS(){tts.on=false;try{speechSynthesis.cancel()}catch{}$('#ttsBtn')
 function toggleTTS(){
  if(!('speechSynthesis' in window))return toast('Máy không hỗ trợ đọc to');
  if(tts.on){stopTTS();return}
- const parts=(ART.innerText.match(/[^.!?\n]{1,200}[.!?\n]*/g)||[]).map(s=>s.trim()).filter(Boolean);
+ const body=$('#rbody')?$('#rbody').innerText:ART.innerText,L=detectLang(body);
+ const parts=(body.match(/[^.!?。！？\n]{1,200}[.!?。！？\n]*/g)||[]).map(s=>s.trim()).filter(Boolean);
  let i=0;tts.on=true;$('#ttsBtn').style.color='var(--ac)';
- const next=()=>{if(!tts.on||i>=parts.length){stopTTS();return}const u=new SpeechSynthesisUtterance(parts[i++]);u.lang='vi-VN';u.onend=next;u.onerror=()=>stopTTS();speechSynthesis.speak(u)};
+ const next=()=>{if(!tts.on||i>=parts.length){stopTTS();return}const u=new SpeechSynthesisUtterance(parts[i++]),vc=pickVoice(L);if(vc){u.voice=vc;u.lang=vc.lang}else u.lang=L==='ja'?'ja-JP':L==='en'?'en-US':'vi-VN';u.rate=L==='ja'?.9:.95;u.onend=next;u.onerror=()=>stopTTS();speechSynthesis.speak(u)};
  next();
 }
 /* bottom sheet */
@@ -706,16 +714,23 @@ document.addEventListener('click',async e=>{
    }catch(err){toast('Không bật được: '+(err.message==='invalid_client'?'Client secret sai':err.message))}break}
   case'disablelt':RT.set(null);LS.set('rp_sec','');route();toast('Đã tắt');break;
   case'dictmode':setDictMode(!ui.dict);break;
-  case'dclose':$('#dict').classList.remove('on');dictCur=null;try{getSelection().removeAllRanges()}catch{}break;
+  case'dclose':$('#dict').classList.remove('on');dictCur=null;trView=null;try{getSelection().removeAllRanges()}catch{}break;
   case'dsave':saveWord();break;
-  case'dspeak':if(dictCur)speak((dictCur.res&&dictCur.res.word)||dictCur.word,dictCur.lang);break;
+  case'dspeak':if(dictCur)speak(speakText({lang:dictCur.lang,word:(dictCur.res&&dictCur.res.word)||dictCur.word,reading:dictCur.res&&dictCur.res.reading}),dictCur.lang);break;
+  case'trsent':if(dictCur)showTrans(dictCur.ctx);break;
+  case'trpara':if(dictCur)showTrans(dictCur.block||dictCur.ctx);break;
+  case'seltr':showTrans($('#selbar').dataset.t);$('#selbar').classList.remove('on');break;
+  case'trto':if(trView)showTrans(trView.text,v);break;
+  case'trspeak':if(trView&&trView.out)speak(trView.out,trView.tl,1);break;
+  case'trback':trView=null;if(dictCur)dictRender();break;
+  case'voicetest':speak({vi:'Xin chào, đây là giọng đọc thử.',en:'Hello, this is a voice test.',ja:'こんにちは、これは音声のテストです。'}[v],v);break;
   case'vfilter':ui.vf=v;route();break;
   case'vdel':vdel[el.dataset.id]=Date.now();LS.set('rp_vdel',vdel);vocab=vocab.filter(x=>x.id!==el.dataset.id);saveVocab();route();toast('Đã xóa từ');break;
-  case'vspeak':{const x=vocab.find(y=>y.id===el.dataset.id);if(x)speak(x.word,x.lang);break}
+  case'vspeak':{const x=vocab.find(y=>y.id===el.dataset.id);if(x)speak(speakText(x),x.lang);break}
   case'vexport':exportVocab();break;
   case'rvstart':ui.rv=null;location.hash='#/review';break;
   case'rvshow':ui.rv.show=true;route();break;
-  case'rvspeak':{const x=ui.rv&&vocab.find(y=>y.id===ui.rv.q[0]);if(x)speak(x.word,x.lang);break}
+  case'rvspeak':{const x=ui.rv&&vocab.find(y=>y.id===ui.rv.q[0]);if(x)speak(speakText(x),x.lang);break}
   case'rvyes':{const rv=ui.rv,x=vocab.find(y=>y.id===rv.q[0]);if(x){x.box=Math.min(x.box+1,DAYS.length-1);x.due=Date.now()+DAYS[x.box]*864e5;x.upd=Date.now();saveVocab()}rv.q.shift();rv.show=false;route();break}
   case'rvno':{const rv=ui.rv,x=vocab.find(y=>y.id===rv.q[0]);if(x){x.box=0;x.due=Date.now()+6e5;x.upd=Date.now();saveVocab()}rv.q.push(rv.q.shift());rv.show=false;route();break}
   case'savetr':{const u=($('#tru').value||'').trim();if(!/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(u))return toast('Địa chỉ không đúng dạng');cfg.trUrl=u;saveCfg();toast('Đã lưu địa chỉ dịch');ensureNames();route();break}
@@ -736,6 +751,7 @@ document.addEventListener('click',async e=>{
   case'clearcache':await idb.clear();toast('Đã xóa dữ liệu đã tải');break;
  }
 });
+document.addEventListener('change',e=>{if(e.target.matches&&e.target.matches('[data-voice]')){cfg.voices=cfg.voices||{};cfg.voices[e.target.dataset.voice]=e.target.value;saveCfg()}});
 document.addEventListener('input',e=>{
  if(e.target.id==='q'){ui.q=e.target.value;clearTimeout(window._qt);window._qt=setTimeout(doSearch,200)}
  if(e.target.matches('[data-pf]')){cfg.prefetch=+e.target.value;saveCfg();$('#v-pf').textContent=cfg.prefetch}
@@ -837,6 +853,8 @@ const D={
 'Bật đồng bộ':['Turn on sync','同期をオン'],'Tạo mã ngẫu nhiên':['Generate random code','ランダムコードを作成'],'Mã đồng bộ':['Sync code','同期コード'],
 'Mã quá ngắn (tối thiểu 6 ký tự)':['Code too short (min 6 characters)','コードが短すぎます（6文字以上）'],'Đã đồng bộ':['Synced','同期しました'],'Đã tắt đồng bộ':['Sync turned off','同期をオフにしました'],
 'Đã sao chép link, gửi sang thiết bị kia rồi mở':['Link copied. Send it to the other device and open it.','リンクをコピーしました。別の端末に送って開いてください。'],
+'Giọng đọc':['Voices','音声'],'Tự chọn':['Auto','自動'],'Nghe thử':['Test','試聴'],'Dịch câu':['Translate sentence','文を翻訳'],'Dịch đoạn':['Translate paragraph','段落を翻訳'],'Dịch đoạn đã chọn':['Translate selection','選択部分を翻訳'],'Dịch':['Translate','翻訳'],'← Về từ':['← Back to word','← 単語に戻る'],
+'Giọng nghe kỳ? Chọn giọng khác ở đây (nên chọn giọng có chữ Enhanced / Premium nếu máy có; tải thêm ở Cài đặt iPad → Trợ năng → Nội dung đọc → Giọng nói).':['Voice sounds odd? Pick another one here (prefer Enhanced / Premium voices if available; download more in iPad Settings → Accessibility → Spoken Content → Voices).','声が不自然な場合はここで別の声を選んでください（Enhanced/Premium を推奨。iPad設定→アクセシビリティ→読み上げコンテンツ→声で追加できます）。'],
 'Lưu':['Save','保存'],'Thử dịch':['Test','テスト'],
 'Đang dịch…':['Translating…','翻訳中…'],'Bản dịch tự động':['Auto-translated','自動翻訳'],'Bản gốc':['Original','原文'],'Không dịch được':['Translation failed','翻訳できませんでした'],
 'Xem bản gốc / bản dịch':['Toggle original / translation','原文／翻訳を切り替え'],'Chưa cài dịch tự động (xem Cài đặt)':['Auto-translation is not set up (see Settings)','自動翻訳が未設定です（設定を参照）'],
@@ -1029,7 +1047,8 @@ function wordAt(x,y){
  let ctx=t;const parts=t.split(/(?<=[。！？!?.\n])/);let pos=0;for(const pt of parts){if(off>=pos&&off<pos+pt.length){ctx=pt;break}pos+=pt.length}
  let ext='';if(lang==='ja'){let e=b;while(e<t.length&&e-b<6&&/[ぁ-ゟ]/.test(t[e]))e++;ext=t.slice(a,e)}
  const range=document.createRange();range.setStart(node,a);range.setEnd(node,b);
- return{word,ext,lang,ctx:ctx.trim().slice(0,220),range};
+ const bel=node.parentElement&&node.parentElement.closest('p,li,td,th,h1,h2,h3,h4,h5,blockquote');
+ return{word,ext,lang,ctx:ctx.trim().slice(0,220),range,block:bel?bel.innerText.trim().slice(0,1800):ctx.trim()};
 }
 const POS={n:'noun',v:'verb',adj:'adjective',adv:'adverb'};
 function enCandidates(w){
@@ -1082,24 +1101,85 @@ async function lookup(word,lang,ext,onPartial){
 }
 let dictCur=null;
 const vId=(lang,w)=>lang+'|'+w.toLowerCase();
-function speak(text,lang){try{speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(text);u.lang=lang==='ja'?'ja-JP':'en-US';speechSynthesis.speak(u)}catch{}}
+const VI_RE=/[àáảãạăằắẳẵặâầấẩẫậèéẻẽẹêềếểễệìíỉĩịòóỏõọôồốổỗộơờớởỡợùúủũụưừứửữựỳýỷỹỵđ]/i;
+let VOICES=[];
+function loadVoices(){try{VOICES=speechSynthesis.getVoices()||[]}catch{}}
+if('speechSynthesis' in window){loadVoices();speechSynthesis.onvoiceschanged=loadVoices}
+function detectLang(t){
+ t=String(t).slice(0,800);const cjk=(t.match(/[぀-ヿ㐀-鿿]/g)||[]).length;
+ if(cjk/Math.max(1,t.length)>.08)return'ja';
+ const vi=(t.match(/[àáảãạăằắẳẵặâầấẩẫậèéẻẽẹêềếểễệìíỉĩịòóỏõọôồốổỗộơờớởỡợùúủũụưừứửữựỳýỷỹỵđ]/gi)||[]).length;
+ return vi/Math.max(1,t.length)>.012?'vi':'en';
+}
+function pickVoice(lang){
+ const pref=(cfg.voices||{})[lang];
+ if(pref){const v=VOICES.find(x=>x.voiceURI===pref);if(v)return v}
+ const c=VOICES.filter(v=>v.lang.toLowerCase().replace('_','-').startsWith(lang));
+ if(!c.length)return null;
+ const score=v=>{const n=v.name.toLowerCase(),l=v.lang.toLowerCase().replace('_','-');let k=0;
+  if(/premium|enhanced|siri|neural|natural|online/.test(n))k+=4;if(/compact/.test(n))k-=3;
+  if(lang==='en'){if(l==='en-us')k+=2;if(/samantha|daniel|karen|google us|aaron|nicky/.test(n))k+=1}
+  if(lang==='ja'&&/kyoko|o-ren|otoya|google/.test(n))k+=1;
+  if(v.localService)k+=.5;return k};
+ return c.sort((x,y)=>score(y)-score(x))[0];
+}
+function speak(text,lang,rate){
+ if(!text)return;
+ try{const L=lang||'en';speechSynthesis.cancel();
+  setTimeout(()=>{const u=new SpeechSynthesisUtterance(text),v=pickVoice(L);
+   if(v){u.voice=v;u.lang=v.lang}else u.lang=L==='ja'?'ja-JP':L==='vi'?'vi-VN':'en-US';
+   u.rate=rate||(L==='ja'?.9:.95);speechSynthesis.speak(u)},80)}catch{}
+}
+const speakText=x=>x.lang==='ja'?(x.reading||x.word):x.word;
+/* ---------- dịch câu / đoạn / đoạn đã chọn ---------- */
+let trView=null;const trCache=new Map();
+async function showTrans(text,tl){
+ text=String(text||'').replace(/\s+/g,' ').trim().slice(0,1800);if(!text)return;
+ if(!cfg.trUrl)return toast('Cần cài địa chỉ dịch (Apps Script) để tra từ');
+ tl=tl||(VI_RE.test(text)?'en':'vi');
+ trView={text,tl,out:trCache.get(tl+'|'+text)||null,back:!!dictCur};renderTrans();
+ if(trView.out)return;
+ try{const o=await trBatch([text],tl);const out=(o[0]||'').trim();if(!trView||trView.text!==text||trView.tl!==tl)return;trCache.set(tl+'|'+text,out);trView.out=out;renderTrans()}
+ catch(e){if(trView&&trView.text===text){trView.err=e.message;renderTrans()}}
+}
+function renderTrans(){
+ const v=trView,card=$('#dict');if(!v)return;card.classList.add('on');
+ const seg=[['vi','Tiếng Việt'],['en','English'],['ja','日本語']].map(([k,l])=>`<button data-act="trto" data-v="${k}" class="${v.tl===k?'on':''}">${l}</button>`).join('');
+ card.innerHTML=`<div class="dh"><b>Dịch</b><button class="ib" data-act="dclose" aria-label="Đóng">✕</button></div><div class="trq">“${esc(v.text.slice(0,160))}${v.text.length>160?'…':''}”</div>
+ <div class="trout">${v.err?esc(T('Không dịch được')+': '+T(v.err)):v.out?esc(v.out):'<span style="color:var(--mut)">Đang dịch…</span>'}</div>
+ <div class="seg" style="margin-bottom:10px">${seg}</div>
+ <div class="da"><button class="btn alt" data-act="trspeak" aria-label="Phát âm">🔊</button>${v.back&&dictCur?'<button class="btn alt" data-act="trback">← Về từ</button>':''}</div>`;
+}
+let progSel=false,selT=0;
+function updSelBar(){
+ const bar=$('#selbar');if(!bar)return;
+ const hide=()=>bar.classList.remove('on');
+ if(!R.classList.contains('on')||progSel)return hide();
+ const sl=getSelection();if(!sl||sl.isCollapsed||!sl.rangeCount)return hide();
+ const an=sl.getRangeAt(0).commonAncestorContainer,el=an.nodeType===3?an.parentElement:an;
+ if(!el||!el.closest('#rbody'))return hide();
+ const t=sl.toString().replace(/\s+/g,' ').trim();
+ if(t.length<6||!(/\s/.test(t)||/[぀-鿿]{3,}/.test(t)))return hide();
+ bar.dataset.t=t.slice(0,1800);bar.innerHTML='<button class="btn" data-act="seltr">Dịch đoạn đã chọn</button>';bar.classList.add('on');
+}
+document.addEventListener('selectionchange',()=>{clearTimeout(selT);selT=setTimeout(updSelBar,350)});
 function dictRender(){
  const d=dictCur,r=d.res,card=$('#dict');
  const canon=(r&&r.word)||d.word,saved=vocab.some(v=>v.id===vId(d.lang,canon));
  card.innerHTML=`<div class="dh"><div><b class="dw">${esc(canon)}</b>${r&&r.reading?`<span class="dr">${esc(r.reading)}</span>`:''}${r&&r.jlpt?` <em class="tag" style="font-style:normal">${esc(r.jlpt)}</em>`:''}</div><button class="ib" data-act="dclose" aria-label="Đóng">✕</button></div>`+
   (r?`<div class="dm">${r._p?'<span style="color:var(--mut);font-weight:400">Đang dịch…</span>':esc(r.vi||'')}</div><div class="de">${r.pos?`<i>${esc(r.pos)}</i>`:''}${esc((r.en||[]).join(' · '))}</div>`:'<div class="de">Đang tra…</div>')+
-  (r&&!r._p?`<div class="da"><button class="btn" data-act="dsave">${saved?'✓ Đã lưu từ':'★ Lưu từ'}</button><button class="btn alt" data-act="dspeak" aria-label="Phát âm">🔊</button></div>`:'');
+  (r&&!r._p?`<div class="da"><button class="btn" data-act="dsave">${saved?'✓ Đã lưu từ':'★ Lưu từ'}</button><button class="btn alt" data-act="dspeak" aria-label="Phát âm">🔊</button></div><div class="da"><button class="btn alt" data-act="trsent">Dịch câu</button><button class="btn alt" data-act="trpara">Dịch đoạn</button></div>`:'');
 }
-async function showDict(word,lang,ctx,ext){
- dictCur={word,lang,ctx,res:null};const card=$('#dict');card.classList.add('on');dictRender();
- try{const r=await lookup(word,lang,ext,p=>{if(dictCur&&dictCur.word===word){dictCur.res={...p,_p:1};dictRender();speak(p.word||word,lang)}});if(!dictCur||dictCur.word!==word)return;delete r._p;dictCur.res=r;dictRender()}
+async function showDict(word,lang,ctx,ext,block){
+ trView=null;dictCur={word,lang,ctx,block:block||ctx,res:null};const card=$('#dict');card.classList.add('on');dictRender();
+ try{const r=await lookup(word,lang,ext,p=>{if(dictCur&&dictCur.word===word){dictCur.res={...p,_p:1};dictRender();speak(speakText({lang,word:p.word||word,reading:p.reading}),lang)}});if(!dictCur||dictCur.word!==word)return;delete r._p;dictCur.res=r;dictRender()}
  catch(e){if(dictCur&&dictCur.word===word)card.innerHTML=`<div class="dh"><b class="dw">${esc(word)}</b><button class="ib" data-act="dclose">✕</button></div><div class="de">${esc(T('Không tra được: ')+T(e.message))}</div>`}
 }
 function dictTap(e){
  const w=wordAt(e.clientX,e.clientY);if(!w)return;
  if(w.lang!=='ja'&&w.lang!=='en'){toast('Chỉ tra được từ tiếng Anh/Nhật');return}
- const sel=getSelection();sel.removeAllRanges();sel.addRange(w.range);
- showDict(w.word,w.lang,w.ctx,w.ext);
+ const sel=getSelection();progSel=true;sel.removeAllRanges();sel.addRange(w.range);setTimeout(()=>{progSel=false;$('#selbar').classList.remove('on')},800);
+ showDict(w.word,w.lang,w.ctx,w.ext,w.block);
 }
 function setDictMode(on){
  ui.dict=on;if(on)warmScript();R.classList.toggle('dm-on',on);$('#dictBtn').classList.toggle('on',on);
