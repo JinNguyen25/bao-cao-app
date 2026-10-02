@@ -56,3 +56,16 @@ Báo cáo hằng ngày/          ← thư mục gốc bạn chọn
 - Token Google hết hạn sau ~1 giờ; app tự gia hạn ngầm, nếu không được sẽ hiện nút "Đăng nhập". Báo cáo đã tải sẵn vẫn đọc được offline.
 - Cập nhật app: sửa file rồi thả lại thư mục lên Netlify; mở app 2 lần để nhận bản mới.
 - Dữ liệu (đã đọc, đã lưu, cài đặt) lưu trên máy, không gửi đi đâu ngoài Google.
+
+## Tự dịch báo cáo (Việt / Anh / Nhật)
+Giao diện đổi ngôn ngữ ngay trong **Cài đặt → Ngôn ngữ**. Để báo cáo cũng tự dịch theo ngôn ngữ đang chọn, cần một script dịch miễn phí trên Google của bạn (làm 1 lần, ~3 phút):
+1. Vào https://script.google.com → **Dự án mới**.
+2. Xóa code mẫu, dán toàn bộ nội dung file `dich-apps-script.gs` → **Lưu**.
+3. **Triển khai (Deploy) → Tùy chọn triển khai mới → loại Ứng dụng web**:
+   - Thực thi dưới tư cách: **Tôi**
+   - Người có quyền truy cập: **Bất kỳ ai**
+   - Bấm Triển khai, cấp quyền khi Google hỏi (Nâng cao → tiếp tục).
+4. Copy **URL ứng dụng web** (kết thúc bằng `/exec`) → dán vào **Cài đặt → Ngôn ngữ** của app → **Lưu** → **Thử dịch**.
+- Báo cáo đã dịch được lưu trên máy để đọc lại/offline. Có nút ⽂ ở thanh dưới để chuyển qua lại bản gốc / bản dịch.
+- Báo cáo đã đúng ngôn ngữ đang chọn thì không bị dịch lại.
+- Hạn mức miễn phí của Google khoảng vài nghìn lượt dịch mỗi ngày, đủ dùng cá nhân.

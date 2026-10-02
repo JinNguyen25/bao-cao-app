@@ -130,6 +130,7 @@ input[type=range]{width:100%;accent-color:var(--ac)}
   <div class="rbar bot">
     <button class="ib" data-act="older" aria-label="Báo cáo cũ hơn"><svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></button>
     <button class="ib" data-act="tts" id="ttsBtn" aria-label="Đọc to"><svg viewBox="0 0 24 24"><path d="M11 5L6 9H3v6h3l5 4zM15.5 8.5a5 5 0 010 7M18.5 5.5a9 9 0 010 13"/></svg></button>
+    <button class="ib" data-act="trtoggle" aria-label="Xem bản gốc / bản dịch"><svg viewBox="0 0 24 24"><path d="M4 5h9M8.5 3v2M6 5c.5 4 3 7 6 8M12 5c-.5 3-3 6-8 8M13 20l4-9 4 9M14.5 17h5"/></svg></button>
     <button class="ib" data-act="unread" aria-label="Đánh dấu chưa đọc"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4" fill="currentColor"/><circle cx="12" cy="12" r="9"/></svg></button>
     <button class="ib" data-act="drive" aria-label="Mở trong Drive"><svg viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 01-1 1H5a1 1 0 01-1-1V7a1 1 0 011-1h5"/></svg></button>
     <button class="ib" data-act="newer" aria-label="Báo cáo mới hơn"><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></button>
@@ -186,9 +187,9 @@ const FONTS={
  serif:['Georgia','Georgia,"Times New Roman",serif'],
  sans:['Hệ thống','system-ui,-apple-system,"Segoe UI",Roboto,sans-serif'],
  mono:['Đơn cách','ui-monospace,Menlo,Consolas,monospace']};
-const APP_VERSION='1.4.0';
+const APP_VERSION='1.5.0';
 const DEFAULT_CLIENT_ID='261665890535-fa8n69cifr5kpr9k0qvurku6rss3kccd.apps.googleusercontent.com';/* điền Client ID vào đây để khỏi phải nhập trên điện thoại */
-const DEF={clientId:DEFAULT_CLIENT_ID,signedIn:false,theme:'sepia',custom:{bg:'#222831',fg:'#eeeeee'},font:'bevn',size:18,lh:1.75,mg:20,align:'left',awake:false,prefetch:10};
+const DEF={clientId:DEFAULT_CLIENT_ID,signedIn:false,theme:'sepia',custom:{bg:'#222831',fg:'#eeeeee'},font:'bevn',size:18,lh:1.75,mg:20,align:'left',awake:false,prefetch:10,lang:'vi',autoTr:true,trUrl:''};
 let cfg=Object.assign({},DEF,LS.get('rp_cfg',{}));
 if(!cfg.fontV){cfg.fontV=2;cfg.font='bevn';cfg.size=Math.min(cfg.size,18);LS.set('rp_cfg',cfg)}
 if(!FONTS[cfg.font])cfg.font='bevn';
@@ -328,7 +329,7 @@ async function sync(){
   cats.sort((a,b)=>a.name.localeCompare(b.name,'vi',{numeric:true}));
   files.sort((a,b)=>b.date-a.date||b.mt-a.mt);
   idx={...idx,files,cats,at:Date.now()};LS.set('rp_idx',idx);
-  prefetch();
+  prefetch();ensureNames();
  }catch(e){ui.err=e.message==='auth'?'auth':e.message}
  ui.syncing=false;route();
 }
@@ -429,7 +430,7 @@ async function loadContent(f,silent){
 /* ---------- trạng thái đọc ---------- */
 const isUnread=f=>readMap[f.id]!==f.mt;
 const byId=id=>idx.files.find(f=>f.id===id);
-const catName=id=>(idx.cats.find(c=>c.id===id)||{name:'Khác'}).name;
+const catName=id=>dispN((idx.cats.find(c=>c.id===id)||{name:'Khác'}).name);
 function markRead(f,v){if(v)readMap[f.id]=f.mt;else delete readMap[f.id];LS.set('rp_read',readMap)}
 
 /* ---------- vẽ màn hình ---------- */
@@ -451,7 +452,7 @@ function banner(){
  return b;
 }
 function rowHTML(f,showCat=true){
- return `<a class="row ${isUnread(f)?'':'read'}" href="#/read/${f.id}"><i class="dot"></i><div class="t"><b>${esc(cleanName(f.name))}</b><span>${showCat?`<em class="tag" style="font-style:normal">${esc(catName(f.cat))}</em>`:''}${dmy(f.date)} · ${hm(f.mt)}</span></div>${bm[f.id]?'<span style="color:var(--ac)">★</span>':''}</a>`;
+ return `<a class="row ${isUnread(f)?'':'read'}" href="#/read/${f.id}"><i class="dot"></i><div class="t"><b>${esc(disp(f.name))}</b><span>${showCat?`<em class="tag" style="font-style:normal">${esc(catName(f.cat))}</em>`:''}${dmy(f.date)} · ${hm(f.mt)}</span></div>${bm[f.id]?'<span style="color:var(--ac)">★</span>':''}</a>`;
 }
 function groupedRows(list,showCat){
  let out='',last='';
@@ -466,7 +467,7 @@ function vLatest(){
  if(ui.filter!=='all')list=list.filter(f=>f.cat===ui.filter);
  if(ui.unreadOnly)list=list.filter(isUnread);
  const unread=idx.files.filter(isUnread).length;
- const chips=`<div class="chips"><button class="chip ${ui.filter==='all'&&!ui.unreadOnly?'on':''}" data-act="filter" data-v="all">Tất cả</button><button class="chip ${ui.unreadOnly?'on':''}" data-act="unreadOnly">Chưa đọc${unread?` (${unread})`:''}</button>${idx.cats.map(c=>`<button class="chip ${ui.filter===c.id?'on':''}" data-act="filter" data-v="${c.id}">${esc(c.name)}</button>`).join('')}</div>`;
+ const chips=`<div class="chips"><button class="chip ${ui.filter==='all'&&!ui.unreadOnly?'on':''}" data-act="filter" data-v="all">Tất cả</button><button class="chip ${ui.unreadOnly?'on':''}" data-act="unreadOnly">Chưa đọc${unread?` (${unread})`:''}</button>${idx.cats.map(c=>`<button class="chip ${ui.filter===c.id?'on':''}" data-act="filter" data-v="${c.id}">${esc(dispN(c.name))}</button>`).join('')}</div>`;
  const shown=list.slice(0,ui.limit);
  return banner()+chips+(shown.length?groupedRows(shown,true):emptyHTML(idx.at?'Không có báo cáo nào phù hợp.':'Chưa có dữ liệu. Bấm nút làm mới ở góc trên.'))+(list.length>shown.length?`<button class="btn alt full" data-act="more">Xem thêm</button>`:'');
 }
@@ -474,7 +475,7 @@ function vCats(){
  hdrState={title:'Các mục báo cáo',sub:idx.roots.length>1?idx.roots.length+' thư mục nguồn':(idx.roots[0]||{}).name||'',tools:true};
  if(!idx.cats.length)return banner()+emptyHTML('Chưa có mục nào. Hãy thêm thư mục báo cáo trong Cài đặt.');
  const card=c=>{const fs=idx.files.filter(f=>f.cat===c.id),un=fs.filter(isUnread).length,l=fs[0];
-  return `<a class="cat" href="#/cat/${c.id}"><div class="ic">${I.folder}</div><div class="t"><b>${esc(c.name)}</b><span>${fs.length} báo cáo${l?' · mới nhất '+dmy(l.date):''}</span><span>${l?esc(cleanName(l.name)):''}</span></div>${un?`<i class="badge">${un}</i>`:''}</a>`};
+  return `<a class="cat" href="#/cat/${c.id}"><div class="ic">${I.folder}</div><div class="t"><b>${esc(dispN(c.name))}</b><span>${fs.length} báo cáo${l?' · mới nhất '+dmy(l.date):''}</span><span>${l?esc(disp(l.name)):''}</span></div>${un?`<i class="badge">${un}</i>`:''}</a>`};
  if(idx.roots.length<2)return banner()+'<div class="grid">'+idx.cats.map(card).join('')+'</div>';
  return banner()+idx.roots.map(r=>{const cs=idx.cats.filter(c=>c.root===r.id);return cs.length?`<div class="day">${esc(r.name)}</div><div class="grid">${cs.map(card).join('')}</div>`:''}).join('');
 }
@@ -502,7 +503,13 @@ async function doSearch(){
 }
 function vSettings(){
  hdrState={title:'Cài đặt',tools:false};
+ const lb=(k,v,l,font)=>`<button data-act="set" data-k="${k}" data-v="${v}" class="${String(cfg[k])===String(v)?'on':''}">${l}</button>`;
  return `
+ <div class="sec"><h3>Ngôn ngữ</h3><div class="seg">${lb('lang','vi','Tiếng Việt')}${lb('lang','en','English')}${lb('lang','ja','日本語')}</div>
+  <div class="ctl"><label>Tự dịch báo cáo sang ngôn ngữ này</label><div class="seg">${lb('autoTr','true','Bật')}${lb('autoTr','false','Tắt')}</div></div>
+  <p>Dán địa chỉ Apps Script dịch (xem HUONG-DAN.md). Cần để tự dịch báo cáo.</p>
+  <input type="text" id="tru" value="${esc(cfg.trUrl)}" placeholder="https://script.google.com/macros/s/…/exec">
+  <p><button class="btn" data-act="savetr">Lưu</button><button class="btn alt" data-act="testtr">Thử dịch</button></p></div>
  <div class="sec"><h3>Giao diện đọc</h3>${appearanceHTML()}
   <div class="prev">Báo cáo ngày hôm nay: doanh thu tăng 12% so với hôm qua. Chi tiết xem ở các mục bên dưới.</div></div>
  <div class="sec"><h3>Nguồn báo cáo</h3>
@@ -515,7 +522,7 @@ function vSettings(){
   <div class="ctl" style="margin-top:0"><label><span>Tự tải sẵn số báo cáo mới nhất</span><span id="v-pf">${cfg.prefetch}</span></label><input type="range" min="0" max="60" step="5" value="${cfg.prefetch}" data-pf></div>
   <p><button class="btn alt" data-act="clearcache">Xóa dữ liệu đã tải</button></p></div>
  ${RT.get()&&SEC()?'':`<div class="sec"><h3>Đăng nhập lâu dài</h3>
-  <p>Dán <b>Client secret</b> của Client ID (Google Cloud → Clients → chọn client → Client secrets) để app tự đăng nhập, khỏi phải bấm lại mỗi giờ. Chỉ lưu trên máy này.</p><input type="password" id="sec" placeholder="GOCSPX-…" autocomplete="off"><p><button class="btn" data-act="enablelt">Bật đăng nhập lâu dài</button></p></div>`}
+  <p>Dán Client secret của Client ID (Google Cloud → Clients → chọn client → Client secrets) để app tự đăng nhập, khỏi phải bấm lại mỗi giờ. Chỉ lưu trên máy này.</p><input type="password" id="sec" placeholder="GOCSPX-…" autocomplete="off"><p><button class="btn" data-act="enablelt">Bật đăng nhập lâu dài</button></p></div>`}
  <div class="sec"><h3>Cập nhật ứng dụng</h3><div class="kv"><span>Phiên bản</span><span>${APP_VERSION}</span></div><p><button class="btn alt" data-act="chkupd">Kiểm tra cập nhật</button></p></div>
  ${DEFAULT_CLIENT_ID?'':`<div class="sec"><h3>Google Client ID</h3><input type="text" id="cid" value="${esc(cfg.clientId)}" placeholder="xxxx.apps.googleusercontent.com"><p><button class="btn alt" data-act="savecid">Lưu Client ID</button></p></div>`}`;
 }
@@ -523,8 +530,8 @@ function vSetup(){
  hdrState={title:'Thiết lập',tools:false};
  if(!cfg.clientId)return `<div class="setup"><h2>Chào mừng 👋</h2><p style="color:var(--mut)">Để app đọc được Google Drive của bạn, cần tạo một <b>Client ID</b> (miễn phí, làm 1 lần). Xem file <code>HUONG-DAN.md</code> đi kèm – khoảng 5 phút. Sau đó dán vào đây:</p>
   <input type="text" id="cid" placeholder="xxxx.apps.googleusercontent.com"><p><button class="btn full" data-act="savecid">Tiếp tục</button></p></div>`;
- if(!cfg.signedIn&&!tokValid())return `<div class="setup"><h2>Đăng nhập Google</h2><p style="color:var(--mut)">App chỉ xin quyền <b>đọc</b> Drive (không sửa/xóa gì).</p><input type="password" id="sec" placeholder="Client secret (khuyên dùng, để khỏi đăng nhập lại)" autocomplete="off" value="${esc(SEC())}" style="margin-bottom:10px"><button class="btn full" data-act="signin">Đăng nhập bằng Google</button>${ui.err&&ui.err!=='auth'?`<p style="color:#d33">${esc(ui.err)}</p>`:''}${DEFAULT_CLIENT_ID?'':'<p><button class="btn alt full" data-act="resetcid">Đổi Client ID</button></p>'}</div>`;
- return `<div class="setup"><h2>Chọn thư mục báo cáo</h2><p style="color:var(--mut)">Chọn thư mục chứa báo cáo. Mỗi <b>thư mục con</b> bên trong sẽ thành một <b>mục</b> riêng. Sau này có thể thêm nhiều thư mục khác trong Cài đặt.</p><button class="btn full" data-act="pick">Chọn thư mục từ Drive</button></div>`;
+ if(!cfg.signedIn&&!tokValid())return `<div class="setup"><h2>Đăng nhập Google</h2><p style="color:var(--mut)">App chỉ xin quyền chỉ đọc Drive (không sửa/xóa gì).</p><input type="password" id="sec" placeholder="Client secret (khuyên dùng, để khỏi đăng nhập lại)" autocomplete="off" value="${esc(SEC())}" style="margin-bottom:10px"><button class="btn full" data-act="signin">Đăng nhập bằng Google</button>${ui.err&&ui.err!=='auth'?`<p style="color:#d33">${esc(ui.err)}</p>`:''}${DEFAULT_CLIENT_ID?'':'<p><button class="btn alt full" data-act="resetcid">Đổi Client ID</button></p>'}</div>`;
+ return `<div class="setup"><h2>Chọn thư mục báo cáo</h2><p style="color:var(--mut)">Chọn thư mục chứa báo cáo. Mỗi thư mục con bên trong sẽ thành một mục riêng. Sau này có thể thêm nhiều thư mục khác trong Cài đặt.</p><button class="btn full" data-act="pick">Chọn thư mục từ Drive</button></div>`;
 }
 const PAGES={latest:vLatest,cats:vCats,saved:vSaved,settings:vSettings};
 let scrollMem={},curKey='';
@@ -548,25 +555,26 @@ function showMain(p,arg){
 }
 
 /* ---------- trình đọc ---------- */
-let cur=null,wake=null,navCount=0,saveT;
+let cur=null,wake=null,navCount=0,saveT;ui.showOrig=false;
 const R=$('#reader'),RS=$('#rscroll'),ART=$('#article');
 async function openReader(id){
  const f=byId(id);
  if(!f){location.hash='#/latest';return}
  if(cur&&cur.id===id&&R.classList.contains('on'))return;
  stopTTS();cur=f;R.classList.add('on');R.classList.remove('hide');document.body.style.overflow='hidden';
- $('#rtitle').textContent=cleanName(f.name);setBm();
+ $('#rtitle').textContent=disp(f.name);setBm();ui.showOrig=false;
  ART.innerHTML='<div class="center">Đang tải báo cáo…</div>';RS.scrollTop=0;$('#prog').style.width='0';
  if(cfg.awake&&navigator.wakeLock){try{wake=await navigator.wakeLock.request('screen')}catch{}}
  try{
   const c=await loadContent(f);
   if(cur!==f)return;
-  const head=`<div class="meta"><h1>${esc(cleanName(f.name))}</h1>${esc(catName(f.cat))} · ${dayLabel(f.date)} · cập nhật ${hm(f.mt)}</div>`;
+  const head=`<div class="meta"><h1>${esc(disp(f.name))}</h1>${esc(catName(f.cat))} · ${dayLabel(f.date)} · cập nhật ${hm(f.mt)}<div id="trs"></div></div>`;
   if(c.html===null)ART.innerHTML=head+`<div class="center">Định dạng này chưa xem được trong app.<br><br><button class="btn" data-act="drive">Mở trong Google Drive</button></div>`;
-  else ART.innerHTML=head+c.html;
+  else ART.innerHTML=head+'<div id="rbody">'+c.html+'</div>';
   markRead(f,true);
   RS.scrollTop=(posMap[f.id]||0)*(RS.scrollHeight-RS.clientHeight);
   updateProg();
+  if(c.html!==null)applyTranslation(f);
  }catch(e){
   if(cur!==f)return;
   ART.innerHTML=`<div class="center">${e.message==='auth'?'Cần đăng nhập lại Google để tải báo cáo này.<br><br><button class="btn" data-act="signin">Đăng nhập</button>':'Không tải được: '+esc(e.message)+'<br><br><button class="btn alt" data-act="retry">Thử lại</button>'}</div>`;
@@ -654,7 +662,7 @@ document.addEventListener('click',async e=>{
   case'more':ui.limit+=60;route();break;
   case'readall':idx.files.filter(f=>f.cat===v).forEach(f=>readMap[f.id]=f.mt);LS.set('rp_read',readMap);route();break;
   case'theme':cfg.theme=v;saveCfg();applyAppearance();el.parentElement.querySelectorAll('button').forEach(b=>b.classList.toggle('on',b===el));const cc=document.getElementById('customColors');if(cc)cc.style.display=v==='custom'?'flex':'none';break;
-  case'set':cfg[el.dataset.k]=el.dataset.k==='awake'?v==='true':v;saveCfg();applyAppearance();el.parentElement.querySelectorAll('button').forEach(b=>b.classList.toggle('on',b===el));break;
+  case'set':{const k=el.dataset.k;cfg[k]=(k==='awake'||k==='autoTr')?v==='true':v;saveCfg();applyAppearance();el.parentElement.querySelectorAll('button').forEach(b=>b.classList.toggle('on',b===el));if(k==='lang')langChanged();if(k==='autoTr'){if(cur)langChanged();else ensureNames()}}break;
   case'rset':openSheet(`<h2>Giao diện đọc <button class="ib" data-act="closesheet">✕</button></h2>${appearanceHTML()}`,bindAppearance);break;
   case'closesheet':closeSheet();break;
   case'bm':if(cur){if(bm[cur.id])delete bm[cur.id];else bm[cur.id]=1;LS.set('rp_bm',bm);setBm();toast(bm[cur.id]?'Đã lưu':'Đã bỏ lưu')}break;
@@ -675,9 +683,13 @@ document.addEventListener('click',async e=>{
     else toast('Google chưa cấp quyền gia hạn. Vào myaccount.google.com/permissions gỡ quyền của app rồi thử lại');
    }catch(err){toast('Không bật được: '+(err.message==='invalid_client'?'Client secret sai':err.message))}break}
   case'disablelt':RT.set(null);LS.set('rp_sec','');route();toast('Đã tắt');break;
+  case'savetr':{cfg.trUrl=($('#tru').value||'').trim();saveCfg();toast('Đã lưu địa chỉ dịch');ensureNames();break}
+  case'testtr':{cfg.trUrl=($('#tru').value||'').trim();if(!cfg.trUrl)return toast('Chưa nhập địa chỉ dịch');saveCfg();try{const o=await trBatch(['Xin chào, đây là bản thử.'],cfg.lang==='vi'?'en':cfg.lang);toast(o[0])}catch(err){toast('Dịch lỗi: '+err.message)}break}
+  case'trtoggle':{if(!cur)break;if(!cfg.trUrl)return toast('Chưa cài dịch tự động (xem Cài đặt)');ui.showOrig=!ui.showOrig;const f=cur,c=await idb.get(f.id);
+   if(ui.showOrig){if(c&&c.html!==null){$('#rbody').innerHTML=c.html;if($('#trs'))$('#trs').textContent='Bản gốc'}}else applyTranslation(f);break}
   case'chkupd':await checkUpdate(true);break;
   case'doupd':await applyUpdate();break;
-  case'rmroot':if(confirm('Bỏ thư mục này khỏi app? (không xóa gì trên Drive)')){idx.roots=idx.roots.filter(r=>r.id!==el.dataset.id);idx.cats=idx.cats.filter(c=>c.root!==el.dataset.id);const ids=new Set(idx.cats.map(c=>c.id));idx.files=idx.files.filter(f=>ids.has(f.cat));LS.set('rp_idx',idx);route()}break;
+  case'rmroot':if(confirm(T('Bỏ thư mục này khỏi app? (không xóa gì trên Drive)'))){idx.roots=idx.roots.filter(r=>r.id!==el.dataset.id);idx.cats=idx.cats.filter(c=>c.root!==el.dataset.id);const ids=new Set(idx.cats.map(c=>c.id));idx.files=idx.files.filter(f=>ids.has(f.cat));LS.set('rp_idx',idx);route()}break;
   case'clearcache':await idb.clear();toast('Đã xóa dữ liệu đã tải');break;
  }
 });
@@ -689,6 +701,205 @@ window.addEventListener('hashchange',()=>{navCount++;route()});
 window.addEventListener('online',()=>{route();sync()});
 window.addEventListener('offline',route);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden){checkUpdate();if(cur&&cfg.awake&&navigator.wakeLock&&!wake)navigator.wakeLock.request('screen').then(w=>wake=w).catch(()=>{});if(hasRoots()&&Date.now()-idx.at>10*60e3&&navigator.onLine)sync()}});
+
+
+/* ---------- đa ngôn ngữ giao diện (vi / en / ja) ---------- */
+const LI={en:0,ja:1};
+const D={
+'Báo cáo':['Reports','レポート'],'Quay lại':['Back','戻る'],'Lưu':['Save','保存'],'Giao diện đọc':['Reading style','表示設定'],
+'Báo cáo cũ hơn':['Older report','前のレポート'],'Báo cáo mới hơn':['Newer report','次のレポート'],'Đọc to':['Read aloud','読み上げ'],
+'Đánh dấu chưa đọc':['Mark as unread','未読にする'],'Mở trong Drive':['Open in Drive','Driveで開く'],
+'Bộ nhớ máy đầy':['Device storage is full','端末の容量がいっぱいです'],
+'Chủ nhật':['Sunday','日曜日'],'Thứ hai':['Monday','月曜日'],'Thứ ba':['Tuesday','火曜日'],'Thứ tư':['Wednesday','水曜日'],'Thứ năm':['Thursday','木曜日'],'Thứ sáu':['Friday','金曜日'],'Thứ bảy':['Saturday','土曜日'],
+'Hôm nay':['Today','今日'],'Hôm qua':['Yesterday','昨日'],'vừa xong':['just now','たった今'],
+'Sáng':['Light','ライト'],'Giấy cũ':['Sepia','セピア'],'Xanh dịu':['Soft green','ソフトグリーン'],'Xanh nhạt':['Light blue','ライトブルー'],'Xám':['Gray','グレー'],'Tối':['Dark','ダーク'],'Đen':['Black','ブラック'],
+'Hệ thống':['System','システム'],'Đơn cách':['Monospace','等幅'],'Tùy chỉnh':['Custom','カスタム'],
+'Màu nền · chữ':['Background · text color','背景・文字色'],'Nền':['Background','背景'],'Chữ':['Text','文字'],'Cỡ chữ':['Font size','文字サイズ'],
+'Giãn dòng':['Line spacing','行間'],'Lề hai bên':['Side margins','左右の余白'],'Kiểu chữ':['Font','フォント'],'Căn lề':['Alignment','配置'],
+'Trái':['Left','左揃え'],'Đều hai bên':['Justify','両端揃え'],'Giữ màn hình sáng khi đọc':['Keep screen on while reading','読書中は画面を点灯'],'Tắt':['Off','オフ'],'Bật':['On','オン'],
+'Chưa có Client ID':['No Client ID','クライアントIDがありません'],
+'Không tải được dịch vụ Google (đang offline?)':['Could not load Google services (offline?)','Googleサービスを読み込めません（オフライン？）'],
+'Chưa bật Google Drive API trong project Google Cloud (bước 2 hướng dẫn)':['Google Drive API is not enabled in your Google Cloud project','Google CloudプロジェクトでDrive APIが有効になっていません'],
+'tài khoản không có quyền':['account has no permission','アカウントに権限がありません'],
+'Đang offline – dùng bản đã lưu':['Offline – using saved copy','オフライン – 保存済みのデータを使用'],
+'(Bảng trống)':['(Empty table)','（空の表）'],'Khác':['Other','その他'],
+'Mới nhất':['Latest','最新'],'Mục':['Sections','カテゴリ'],'Đã lưu':['Saved','保存済み'],'Cài đặt':['Settings','設定'],'Làm mới':['Refresh','更新'],
+'Cần đăng nhập lại Google để cập nhật báo cáo mới.':['Sign in to Google again to fetch new reports.','新しいレポートを取得するにはGoogleに再ログインしてください。'],
+'Đăng nhập':['Sign in','ログイン'],'Thử lại':['Retry','再試行'],
+'Đang offline – hiển thị báo cáo đã lưu trên máy.':['Offline – showing reports saved on this device.','オフライン – 端末に保存済みのレポートを表示中。'],
+'Báo cáo mới nhất':['Latest reports','最新レポート'],'Tất cả':['All','すべて'],'Chưa đọc':['Unread','未読'],
+'Không có báo cáo nào phù hợp.':['No matching reports.','該当するレポートはありません。'],
+'Chưa có dữ liệu. Bấm nút làm mới ở góc trên.':['No data yet. Tap the refresh button at the top.','データがありません。上の更新ボタンを押してください。'],
+'Xem thêm':['Show more','もっと見る'],'Các mục báo cáo':['Report sections','レポートカテゴリ'],
+'Chưa có mục nào. Hãy thêm thư mục báo cáo trong Cài đặt.':['No sections yet. Add a report folder in Settings.','カテゴリがありません。設定でレポートフォルダを追加してください。'],
+'Mục này chưa có báo cáo.':['No reports in this section.','このカテゴリにレポートはありません。'],
+'Chưa lưu báo cáo nào.':['No saved reports.','保存したレポートはありません。'],
+'Khi đang đọc, bấm biểu tượng dấu trang để lưu lại.':['While reading, tap the bookmark icon to save.','読書中にしおりアイコンを押すと保存できます。'],
+'Tìm kiếm':['Search','検索'],'Tên báo cáo hoặc nội dung đã tải…':['Report title or downloaded content…','レポート名またはダウンロード済みの内容…'],
+'Nhập ít nhất 2 ký tự.':['Enter at least 2 characters.','2文字以上入力してください。'],'Không tìm thấy.':['Nothing found.','見つかりませんでした。'],
+'Báo cáo ngày hôm nay: doanh thu tăng 12% so với hôm qua. Chi tiết xem ở các mục bên dưới.':["Today's report: revenue is up 12% from yesterday. See the sections below for details.",'本日のレポート：売上は前日比12％増。詳細は以下のセクションをご覧ください。'],
+'Nguồn báo cáo':['Report sources','レポートの取得元'],'Xóa':['Remove','削除'],'Thư mục':['Folder','フォルダ'],'Chưa chọn':['Not selected','未選択'],
+'Số báo cáo':['Reports','レポート数'],'Cập nhật lần cuối':['Last updated','最終更新'],'Tài khoản Google':['Google account','Googleアカウント'],
+'Đã đăng nhập':['Signed in','ログイン済み'],'Chưa đăng nhập':['Not signed in','未ログイン'],'+ Thêm thư mục':['+ Add folder','+ フォルダを追加'],'Đăng xuất':['Sign out','ログアウト'],
+'Tải sẵn để đọc offline':['Download for offline reading','オフライン用に事前ダウンロード'],'Tự tải sẵn số báo cáo mới nhất':['Auto-download the latest reports','最新レポートを自動ダウンロード'],
+'Xóa dữ liệu đã tải':['Clear downloaded data','ダウンロード済みデータを削除'],'Đăng nhập lâu dài':['Stay signed in','ログイン状態を維持'],
+'Dán Client secret của Client ID (Google Cloud → Clients → chọn client → Client secrets) để app tự đăng nhập, khỏi phải bấm lại mỗi giờ. Chỉ lưu trên máy này.':['Paste the Client secret of your Client ID (Google Cloud → Clients) so the app signs in automatically. Stored only on this device.','クライアントIDのクライアントシークレットを貼り付けると、自動でログインされます。この端末にのみ保存されます。'],
+'Bật đăng nhập lâu dài':['Enable stay signed in','ログイン維持を有効にする'],
+'Cập nhật ứng dụng':['App update','アプリの更新'],'Phiên bản':['Version','バージョン'],'Kiểm tra cập nhật':['Check for updates','更新を確認'],
+'Lưu Client ID':['Save Client ID','クライアントIDを保存'],'Thiết lập':['Setup','セットアップ'],'Chào mừng 👋':['Welcome 👋','ようこそ 👋'],'Tiếp tục':['Continue','続ける'],
+'Đăng nhập Google':['Sign in to Google','Googleにログイン'],
+'App chỉ xin quyền chỉ đọc Drive (không sửa/xóa gì).':['The app only asks for read-only access to Drive (it never edits or deletes).','アプリはDriveの読み取り専用権限のみ要求します（編集・削除はしません）。'],
+'Client secret (khuyên dùng, để khỏi đăng nhập lại)':['Client secret (recommended, to stay signed in)','クライアントシークレット（推奨：再ログイン不要に）'],
+'Đăng nhập bằng Google':['Sign in with Google','Googleでログイン'],'Đổi Client ID':['Change Client ID','クライアントIDを変更'],
+'Chọn thư mục báo cáo':['Choose report folder','レポートフォルダを選択'],
+'Chọn thư mục chứa báo cáo. Mỗi thư mục con bên trong sẽ thành một mục riêng. Sau này có thể thêm nhiều thư mục khác trong Cài đặt.':['Choose the folder that contains your reports. Each subfolder becomes its own section. You can add more folders later in Settings.','レポートのフォルダを選択してください。サブフォルダはそれぞれ別のカテゴリになります。フォルダは後から設定で追加できます。'],
+'Chọn thư mục từ Drive':['Choose folder from Drive','Driveからフォルダを選択'],
+'Đang tải báo cáo…':['Loading report…','レポートを読み込み中…'],
+'Định dạng này chưa xem được trong app.':['This format cannot be viewed in the app.','この形式はアプリ内で表示できません。'],
+'Mở trong Google Drive':['Open in Google Drive','Googleドライブで開く'],
+'Cần đăng nhập lại Google để tải báo cáo này.':['Sign in to Google again to load this report.','このレポートを読み込むにはGoogleに再ログインしてください。'],
+'Đây là báo cáo cũ nhất':['This is the oldest report','最も古いレポートです'],'Đây là báo cáo mới nhất':['This is the newest report','最新のレポートです'],
+'Máy không hỗ trợ đọc to':['Read-aloud is not supported on this device','この端末は読み上げに対応していません'],
+'Cần đăng nhập lại.':['Sign in again.','再ログインが必要です。'],'Được chia sẻ với tôi':['Shared with me','共有アイテム'],'Đang tải…':['Loading…','読み込み中…'],
+'Không có thư mục con.':['No subfolders.','サブフォルダはありません。'],'Hoặc dán link thư mục Drive:':['Or paste a Drive folder link:','またはDriveフォルダのリンクを貼り付け：'],
+'Dùng link này':['Use this link','このリンクを使う'],'Thư mục này đã có rồi':['This folder is already added','このフォルダは追加済みです'],
+'Đang offline':['Offline','オフライン'],
+'Bị từ chối: hãy thêm email của bạn vào Test users trong Google Cloud':['Denied: add your email to Test users in Google Cloud','拒否されました：Google Cloudのテストユーザーにメールを追加してください'],
+'Cửa sổ đăng nhập bị đóng hoặc bị chặn popup':['The sign-in window was closed or blocked','ログインウィンドウが閉じられたかブロックされました'],
+'Đã đăng xuất':['Signed out','ログアウトしました'],'Client ID không đúng dạng':['Invalid Client ID format','クライアントIDの形式が正しくありません'],
+'Đã bỏ lưu':['Removed from saved','保存を解除しました'],'Đã đánh dấu chưa đọc':['Marked as unread','未読にしました'],'Hãy đăng nhập trước':['Please sign in first','先にログインしてください'],
+'Drive của tôi':['My Drive','マイドライブ'],'Link không hợp lệ':['Invalid link','無効なリンクです'],'Đây không phải thư mục':['This is not a folder','フォルダではありません'],
+'Client secret không đúng dạng':['Invalid client secret format','クライアントシークレットの形式が正しくありません'],'Đã bật đăng nhập lâu dài':['Stay-signed-in enabled','ログイン維持を有効にしました'],
+'Google chưa cấp quyền gia hạn. Vào myaccount.google.com/permissions gỡ quyền của app rồi thử lại':['Google did not grant renewal access. Remove the app at myaccount.google.com/permissions and try again.','更新権限が付与されませんでした。myaccount.google.com/permissions でアプリを削除して再試行してください。'],
+'Đã tắt':['Turned off','オフにしました'],'Bỏ thư mục này khỏi app? (không xóa gì trên Drive)':['Remove this folder from the app? (Nothing is deleted on Drive)','このフォルダをアプリから外しますか？（Drive上のデータは削除されません）'],
+'Đã xóa dữ liệu đã tải':['Downloaded data cleared','ダウンロード済みデータを削除しました'],'Không kiểm tra được (offline?)':['Could not check (offline?)','確認できませんでした（オフライン？）'],
+'Cập nhật ngay':['Update now','今すぐ更新'],
+'Ngôn ngữ':['Language','言語'],'Tự dịch báo cáo sang ngôn ngữ này':['Auto-translate reports to this language','レポートをこの言語に自動翻訳'],
+'Dịch báo cáo tự động':['Automatic translation','自動翻訳'],
+'Dán địa chỉ Apps Script dịch (xem HUONG-DAN.md). Cần để tự dịch báo cáo.':['Paste your translation Apps Script URL (see HUONG-DAN.md). Required for auto-translation.','翻訳用Apps ScriptのURLを貼り付けてください（HUONG-DAN.md参照）。自動翻訳に必要です。'],
+'Lưu':['Save','保存'],'Thử dịch':['Test','テスト'],
+'Đang dịch…':['Translating…','翻訳中…'],'Bản dịch tự động':['Auto-translated','自動翻訳'],'Bản gốc':['Original','原文'],'Không dịch được':['Translation failed','翻訳できませんでした'],
+'Xem bản gốc / bản dịch':['Toggle original / translation','原文／翻訳を切り替え'],'Chưa cài dịch tự động (xem Cài đặt)':['Auto-translation is not set up (see Settings)','自動翻訳が未設定です（設定を参照）'],
+'Đã lưu địa chỉ dịch':['Translation URL saved','翻訳URLを保存しました'],'Bản dịch hoạt động':['Translation works','翻訳は正常に動作しています'],
+'Chưa nhập địa chỉ dịch':['No translation URL','翻訳URLが未入力です'],
+};
+const PFX={'Lỗi cập nhật':['Update error','更新エラー'],'Đăng nhập không thành công':['Sign-in failed','ログインに失敗'],'Không tải được':['Could not load','読み込めません'],'Không mở được thư mục':['Could not open folder','フォルダを開けません'],'Không bật được':['Could not enable','有効にできません'],'Bị từ chối (403)':['Denied (403)','拒否されました (403)'],'Dịch lỗi':['Translation error','翻訳エラー']};
+const WDS=['Chủ nhật','Thứ hai','Thứ ba','Thứ tư','Thứ năm','Thứ sáu','Thứ bảy'];
+function T(s,L){
+ L=L||cfg.lang;if(L==='vi'||!s)return s;const i=LI[L];let m;
+ if(D[s])return D[s][i];
+ if(m=s.match(/^(\d+) báo cáo(?: · mới nhất (.+))?$/))return i?`${m[1]}件のレポート${m[2]?' · 最新 '+m[2]:''}`:`${m[1]} report${m[1]==1?'':'s'}${m[2]?' · latest '+m[2]:''}`;
+ if(m=s.match(/^(\d+) thư mục nguồn$/))return i?`${m[1]}個の取得元フォルダ`:`${m[1]} source folders`;
+ if(m=s.match(/^Chưa đọc \((\d+)\)$/))return i?`未読 (${m[1]})`:`Unread (${m[1]})`;
+ if(m=s.match(/^Đánh dấu tất cả đã đọc \((\d+)\)$/))return i?`すべて既読にする (${m[1]})`:`Mark all as read (${m[1]})`;
+ if(m=s.match(/^(\d+) phút trước$/))return i?`${m[1]}分前`:`${m[1]} min ago`;
+ if(m=s.match(/^(\d+) giờ trước$/))return i?`${m[1]}時間前`:`${m[1]} h ago`;
+ if(m=s.match(/^(\d+) ngày trước$/))return i?`${m[1]}日前`:`${m[1]} d ago`;
+ if(m=s.match(/^Cập nhật (.+)$/))return i?`更新: ${T(m[1],L)}`:`Updated ${T(m[1],L)}`;
+ if(m=s.match(/^(.+) · (.+) · cập nhật (\d+:\d+)$/))return i?`${T(m[1],L)} · ${T(m[2],L)} · 更新 ${m[3]}`:`${T(m[1],L)} · ${T(m[2],L)} · updated ${m[3]}`;
+ if(m=s.match(/^(Chủ nhật|Thứ [a-zé]+), (.+)$/))return `${T(m[1],L)}, ${m[2]}`;
+ if(m=s.match(/^(\d+) · (\d+) mục$/))return i?`${m[1]}件 · ${m[2]}カテゴリ`:`${m[1]} · ${m[2]} sections`;
+ if(m=s.match(/^(Lỗi cập nhật|Đăng nhập không thành công|Không tải được|Không mở được thư mục|Không bật được|Bị từ chối \(403\|Dịch lỗi)\)?: (.*)$/)){const k=m[1].replace(/ \(403$/,' (403)');return `${PFX[k]?PFX[k][i]:m[1]}: ${T(m[2],L)}`}
+ if(m=s.match(/^Chọn “(.*)”$/))return i?`「${m[1]}」を選択`:`Choose “${m[1]}”`;
+ if(m=s.match(/^Đã thêm “(.*)$/))return i?`「${m[1]}」を追加しました`:`Added “${m[1]}`;
+ if(m=s.match(/^Có bản mới (.+)$/))return i?`新しいバージョン ${m[1]} があります`:`New version ${m[1]} available`;
+ if(m=s.match(/^Đang dùng bản mới nhất \((.+)\)$/))return i?`最新版を使用中 (${m[1]})`:`You have the latest version (${m[1]})`;
+ return s;
+}
+const ATTRS=['placeholder','aria-label','title'];
+const trSkip=n=>{const p=n.parentElement;return !p||p.closest('#rbody,script,style,textarea')};
+function trTextNode(n){
+ if(trSkip(n))return;
+ if(n.__out===undefined||n.nodeValue!==n.__out)n.__vi=n.nodeValue;
+ const src=n.__vi,m=src.match(/^(\s*)([\s\S]*?)(\s*)$/);
+ const out=m[2]?m[1]+T(m[2])+m[3]:src;
+ n.__out=out;if(n.nodeValue!==out)n.nodeValue=out;
+}
+function trAttrs(el){
+ for(const a of ATTRS){if(!el.hasAttribute(a))continue;el.__a=el.__a||{};const cur=el.getAttribute(a);
+  if(!el.__a[a]||el.__a[a].out!==cur)el.__a[a]={vi:cur,out:cur};
+  const o=T(el.__a[a].vi);el.__a[a].out=o;if(cur!==o)el.setAttribute(a,o)}
+}
+function trTree(root){
+ if(root.nodeType===3){trTextNode(root);return}
+ if(root.nodeType!==1)return;
+ if(root.closest&&root.closest('#rbody'))return;
+ trAttrs(root);
+ root.querySelectorAll('['+ATTRS.join('],[')+']').forEach(trAttrs);
+ const w=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);const ns=[];while(w.nextNode())ns.push(w.currentNode);ns.forEach(trTextNode);
+}
+new MutationObserver(ms=>{for(const m of ms){
+ if(m.type==='childList')m.addedNodes.forEach(trTree);
+ else if(m.type==='characterData')trTextNode(m.target);
+ else if(m.type==='attributes')trAttrs(m.target);
+}}).observe(document.body,{childList:true,subtree:true,characterData:true,attributes:true,attributeFilter:ATTRS});
+
+/* ---------- dịch báo cáo qua Google Apps Script của người dùng ---------- */
+async function trBatch(arr,tl){
+ if(!cfg.trUrl)throw new Error('Chưa nhập địa chỉ dịch');
+ const r=await fetch(cfg.trUrl,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({tl,texts:arr})});
+ if(!r.ok)throw new Error('HTTP '+r.status);
+ const j=await r.json();if(j.error)throw new Error(j.error);
+ if(!Array.isArray(j.lines)||j.lines.length!==arr.length)throw new Error('Kết quả dịch không khớp');
+ return j.lines;
+}
+async function translateHtml(html,tl){
+ const box=document.createElement('div');box.innerHTML=html;
+ const nodes=[],w=document.createTreeWalker(box,NodeFilter.SHOW_TEXT);
+ while(w.nextNode()){const n=w.currentNode;if(/\S/.test(n.nodeValue)&&!(n.parentElement&&n.parentElement.closest('pre')))nodes.push(n)}
+ if(!nodes.length)return null;
+ const texts=nodes.map(n=>n.nodeValue.replace(/\s+/g,' ').trim()),batches=[];
+ let cb=[],len=0;
+ texts.forEach((t,i)=>{if(cb.length&&(len+t.length>2800||cb.length>=60)){batches.push(cb);cb=[];len=0}cb.push(i);len+=t.length+1});
+ if(cb.length)batches.push(cb);
+ const res=new Array(texts.length);
+ const run=async ids=>{const out=await trBatch(ids.map(i=>texts[i]),tl);ids.forEach((id,k)=>res[id]=out[k])};
+ await run(batches[0]);
+ const same=batches[0].filter(i=>(res[i]||'').trim().toLowerCase()===texts[i].toLowerCase()).length;
+ if(same/batches[0].length>=.85)return null;
+ let next=1;await Promise.all([0,1,2].map(async()=>{while(next<batches.length)await run(batches[next++])}));
+ nodes.forEach((n,i)=>{if(res[i]!=null){const lead=n.nodeValue.match(/^\s*/)[0],trail=n.nodeValue.match(/\s*$/)[0];n.nodeValue=lead+res[i]+trail}});
+ return box.innerHTML;
+}
+async function applyTranslation(f){
+ if(ui.showOrig||!cfg.autoTr||!cfg.trUrl)return;
+ const tl=cfg.lang,st=()=>$('#trs');
+ try{
+  const key=f.id+'|'+tl;let rec=await idb.get(key);
+  if(!(rec&&rec.mt===f.mt&&rec.v===2)){
+   if(st())st().textContent='Đang dịch…';
+   const c=await idb.get(f.id);
+   const html=await translateHtml(c.html,tl);
+   rec={id:key,mt:f.mt,v:2,html,same:html===null};await idb.put(rec);
+  }
+  if(cur!==f||ui.showOrig)return;
+  if(rec.same){if(st())st().textContent='';return}
+  const ratio=RS.scrollTop/Math.max(1,RS.scrollHeight-RS.clientHeight);
+  $('#rbody').innerHTML=rec.html;
+  RS.scrollTop=ratio*(RS.scrollHeight-RS.clientHeight);
+  if(st())st().textContent='Bản dịch tự động';
+ }catch(e){if(cur===f&&st())st().textContent='Không dịch được'}
+}
+let NTR=LS.get('rp_ntr',{});
+const nkey=n=>cfg.lang+'|'+n;
+const dispN=n=>(cfg.autoTr&&cfg.trUrl&&NTR[nkey(n)])||n;
+const disp=n=>dispN(cleanName(n));
+let ensuring=false;
+async function ensureNames(){
+ if(!cfg.autoTr||!cfg.trUrl||ensuring)return;
+ const names=[...new Set([...idx.files.map(f=>cleanName(f.name)),...idx.cats.map(c=>c.name)])].filter(n=>NTR[nkey(n)]===undefined);
+ if(!names.length)return;
+ ensuring=true;
+ try{
+  for(let i=0;i<names.length;i+=40){const ch=names.slice(i,i+40);const out=await trBatch(ch,cfg.lang);ch.forEach((n,k)=>NTR[nkey(n)]=(out[k]||n).trim()||n)}
+  LS.set('rp_ntr',NTR);route();if(cur)$('#rtitle').textContent=disp(cur.name);
+ }catch{}
+ ensuring=false;
+}
+function langChanged(){
+ document.documentElement.lang=cfg.lang;trTree(document.body);ensureNames();
+ if(cur){const f=cur;ui.showOrig=false;cur=null;R.classList.remove('on');openReader(f.id)}
+}
 
 /* ---------- cập nhật ứng dụng ---------- */
 let newVer='';
@@ -710,7 +921,7 @@ async function applyUpdate(){
 }
 
 /* ---------- khởi động ---------- */
-applyAppearance();
+applyAppearance();document.documentElement.lang=cfg.lang;trTree(document.body);
 if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
 route();
 if(hasRoots()&&cfg.signedIn&&(Date.now()-idx.at>5*60e3))sync();
