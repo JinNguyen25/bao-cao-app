@@ -204,7 +204,7 @@ const FONTS={
  serif:['Georgia','Georgia,"Times New Roman",serif'],
  sans:['Hệ thống','system-ui,-apple-system,"Segoe UI",Roboto,sans-serif'],
  mono:['Đơn cách','ui-monospace,Menlo,Consolas,monospace']};
-const APP_VERSION='1.7.0';
+const APP_VERSION='1.7.1';
 const DEFAULT_CLIENT_ID='261665890535-fa8n69cifr5kpr9k0qvurku6rss3kccd.apps.googleusercontent.com';/* điền Client ID vào đây để khỏi phải nhập trên điện thoại */
 const DEF={clientId:DEFAULT_CLIENT_ID,signedIn:false,theme:'sepia',custom:{bg:'#222831',fg:'#eeeeee'},font:'bevn',size:18,lh:1.75,mg:20,align:'left',awake:false,prefetch:10,lang:'vi',autoTr:true,trUrl:'',readLang:'ui'};
 let cfg=Object.assign({},DEF,LS.get('rp_cfg',{}));
@@ -290,8 +290,8 @@ async function getToken(){
   try{return setTok(await tokenPost({grant_type:'refresh_token',refresh_token:RT.get()}))}
   catch(e){if(e.message==='invalid_grant'||e.message==='invalid_client'||e.message==='unauthorized_client'){RT.set(null);throw new Error('auth')}throw e}
  }
- if(!cfg.signedIn)throw new Error('auth');
- try{return await requestToken(false)}catch{throw new Error('auth')}
+ /* không tự mở popup đăng nhập ngầm (Safari/iPad chặn → lỗi 400); chờ người dùng bấm Đăng nhập */
+ throw new Error('auth');
 }
 async function api(path,params,raw){
  for(let attempt=0;attempt<2;attempt++){
