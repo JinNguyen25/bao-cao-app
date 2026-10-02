@@ -742,7 +742,7 @@ document.addEventListener('input',e=>{
 window.addEventListener('hashchange',()=>{navCount++;route()});
 window.addEventListener('online',()=>{route();sync()});
 window.addEventListener('offline',route);
-document.addEventListener('visibilitychange',()=>{if(document.hidden)syncNow(false);if(!document.hidden){syncNow(false);checkUpdate();if(cur&&cfg.awake&&navigator.wakeLock&&!wake)navigator.wakeLock.request('screen').then(w=>wake=w).catch(()=>{});if(hasRoots()&&Date.now()-idx.at>2*60e3&&navigator.onLine&&tokValid())sync()}});
+document.addEventListener('visibilitychange',()=>{if(document.hidden)syncNow(false);if(!document.hidden){syncNow(false);checkUpdate();if(cur&&cfg.awake&&navigator.wakeLock&&!wake)navigator.wakeLock.request('screen').then(w=>wake=w).catch(()=>{});if(hasRoots()&&Date.now()-idx.at>2*60e3&&navigator.onLine)sync()}});
 
 
 /* ---------- đa ngôn ngữ giao diện (vi / en / ja) ---------- */
@@ -1161,7 +1161,7 @@ async function applyUpdate(){
 applyAppearance();document.documentElement.lang=cfg.lang;trTree(document.body);
 if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
 route();
-if(hasRoots()&&cfg.signedIn&&tokValid())sync();
+if(hasRoots()&&cfg.signedIn)sync();
 checkUpdate();setTimeout(()=>syncNow(false),1500);
 </script>
 </body>
