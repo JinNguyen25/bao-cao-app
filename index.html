@@ -175,12 +175,15 @@ const THEMES={
  black:{n:'Đen',bg:'#000000',fg:'#9a9a9a',ac:'#6a9fe8'}
 };
 const FONTS={serif:['Có chân','Georgia,"Noto Serif","Times New Roman",serif'],sans:['Không chân','system-ui,-apple-system,"Segoe UI",Roboto,sans-serif'],mono:['Đơn cách','ui-monospace,Menlo,Consolas,monospace']};
-const APP_VERSION='1.1.1';
+const APP_VERSION='1.2.0';
 const DEFAULT_CLIENT_ID='261665890535-fa8n69cifr5kpr9k0qvurku6rss3kccd.apps.googleusercontent.com';/* điền Client ID vào đây để khỏi phải nhập trên điện thoại */
 const DEF={clientId:DEFAULT_CLIENT_ID,signedIn:false,theme:'sepia',custom:{bg:'#222831',fg:'#eeeeee'},font:'serif',size:19,lh:1.7,mg:20,align:'left',awake:false,prefetch:10};
 let cfg=Object.assign({},DEF,LS.get('rp_cfg',{}));
 if(DEFAULT_CLIENT_ID&&cfg.clientId!==DEFAULT_CLIENT_ID){cfg.clientId=DEFAULT_CLIENT_ID;LS.set('rp_cfg',cfg)}
-let idx=LS.get('rp_idx',{rootId:'',rootName:'',files:[],cats:[],at:0});
+let idx=LS.get('rp_idx',{roots:[],files:[],cats:[],at:0});
+if(!idx.roots)idx.roots=idx.rootId?[{id:idx.rootId,name:idx.rootName||'Báo cáo'}]:[];
+const hasRoots=()=>idx.roots.length>0;
+const nfc=t=>String(t==null?'':t).normalize('NFC');
 let readMap=LS.get('rp_read',{}),bm=LS.get('rp_bm',{}),posMap=LS.get('rp_pos',{});
 let tok=LS.get('rp_tok',null);
 const saveCfg=()=>LS.set('rp_cfg',cfg);
@@ -260,28 +263,31 @@ function nameDate(n){let m=n.match(/(20\d{2})[-_.\/](\d{1,2})[-_.\/](\d{1,2})/);
 const cleanName=n=>n.replace(/\.(md|txt|html?|docx?|pdf|json|csv)$/i,'');
 
 async function sync(){
- if(ui.syncing||!idx.rootId)return;
+ if(ui.syncing||!hasRoots())return;
  if(!navigator.onLine){toast('Đang offline – dùng bản đã lưu');return}
  ui.syncing=true;ui.err='';renderHeader();
  try{
-  const topOf={},files=[],cats=[];
-  let level=[idx.rootId],depth=0;
-  while(level.length&&depth<5){
-   const next=[];
-   for(let i=0;i<level.length;i+=12){
-    const chunk=level.slice(i,i+12);
-    const q='('+chunk.map(id=>`'${id}' in parents`).join(' or ')+') and trashed=false';
-    const items=await listAll(q,'id,name,mimeType,modifiedTime,parents');
-    for(const it of items){
-     const par=(it.parents||[]).find(p=>chunk.includes(p));
-     if(it.mimeType===FOLDER){const top=par===idx.rootId?it.id:topOf[par];topOf[it.id]=top;if(par===idx.rootId)cats.push({id:it.id,name:it.name});next.push(it.id)}
-     else if(SUPPORTED(it.mimeType)){const mt=Date.parse(it.modifiedTime);files.push({id:it.id,name:it.name,mime:it.mimeType,mt,date:nameDate(it.name)||mt,cat:par===idx.rootId?'_root':(topOf[par]||'_root')})}
+  const topOf={},files=[],cats=[],seen=new Set();
+  for(const root of idx.roots){
+   let level=[root.id],depth=0,hasLoose=false;
+   while(level.length&&depth<5){
+    const next=[];
+    for(let i=0;i<level.length;i+=12){
+     const chunk=level.slice(i,i+12);
+     const q='('+chunk.map(id=>`'${id}' in parents`).join(' or ')+') and trashed=false';
+     const items=await listAll(q,'id,name,mimeType,modifiedTime,parents');
+     for(const it of items){
+      if(seen.has(it.id))continue;seen.add(it.id);
+      const par=(it.parents||[]).find(p=>chunk.includes(p)),name=nfc(it.name);
+      if(it.mimeType===FOLDER){const top=par===root.id?it.id:topOf[par];topOf[it.id]=top;if(par===root.id)cats.push({id:it.id,name,root:root.id});next.push(it.id)}
+      else if(SUPPORTED(it.mimeType)){const mt=Date.parse(it.modifiedTime);const loose=par===root.id;if(loose)hasLoose=true;files.push({id:it.id,name,mime:it.mimeType,mt,date:nameDate(name)||mt,cat:loose?'_r'+root.id:(topOf[par]||'_r'+root.id)})}
+     }
     }
+    level=next;depth++;
    }
-   level=next;depth++;
+   if(hasLoose)cats.push({id:'_r'+root.id,name:root.name,root:root.id,loose:true});
   }
   cats.sort((a,b)=>a.name.localeCompare(b.name,'vi',{numeric:true}));
-  if(files.some(f=>f.cat==='_root'))cats.push({id:'_root',name:'Chung'});
   files.sort((a,b)=>b.date-a.date||b.mt-a.mt);
   idx={...idx,files,cats,at:Date.now()};LS.set('rp_idx',idx);
   prefetch();
@@ -290,12 +296,12 @@ async function sync(){
 }
 async function prefetch(){
  const n=cfg.prefetch;if(!n)return;
- for(const f of idx.files.slice(0,n)){try{const c=await idb.get(f.id);if(!c||c.mt!==f.mt)await loadContent(f,true)}catch{}}
+ for(const f of idx.files.slice(0,n)){try{const c=await idb.get(f.id);if(!c||c.mt!==f.mt||c.v!==2)await loadContent(f,true)}catch{}}
 }
 
 /* ---------- đọc & làm sạch nội dung ---------- */
 function cleanHtml(raw){
- const doc=new DOMParser().parseFromString(raw,'text/html');
+ const doc=new DOMParser().parseFromString(nfc(raw),'text/html');
  const css=[...doc.querySelectorAll('style')].map(s=>s.textContent).join('\n'),cls={};
  css.replace(/\.([\w-]+)\s*\{([^}]*)\}/g,(m,c,b)=>{const f=[];
   if(/font-weight:\s*(700|bold|[6-9]00)/.test(b))f.push('strong');
@@ -330,7 +336,7 @@ function cleanHtml(raw){
  return box.innerHTML;
 }
 function md(src){
- const lines=src.replace(/\r/g,'').split('\n'),out=[];let i=0;
+ const lines=nfc(src).replace(/\r/g,'').split('\n'),out=[];let i=0;
  const inl=s=>esc(s).replace(/`([^`]+)`/g,'<code>$1</code>').replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>').replace(/__([^_]+)__/g,'<strong>$1</strong>').replace(/(^|[^*\w])\*([^*\s][^*]*)\*/g,'$1<em>$2</em>').replace(/~~([^~]+)~~/g,'<s>$1</s>').replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g,'<a href="$2" target="_blank" rel="noopener">$1</a>');
  const isBlock=l=>/^(#{1,6}\s|```|\s*>|\s*([-*+]|\d+[.)])\s)/.test(l)||/^\s*([-*_])\s*\1\s*\1[\s\-*_]*$/.test(l);
  const cells=l=>l.trim().replace(/^\||\|$/g,'').split('|').map(c=>c.trim());
@@ -355,6 +361,7 @@ function md(src){
  return out.join('\n');
 }
 function csvTable(t){
+ t=nfc(t);
  const rows=[];let r=[],c='',q=false;
  for(let i=0;i<t.length;i++){const ch=t[i];
   if(q){if(ch==='"'){if(t[i+1]==='"'){c+='"';i++}else q=false}else c+=ch}
@@ -365,7 +372,7 @@ function csvTable(t){
 }
 async function loadContent(f,silent){
  const cached=await idb.get(f.id);
- if(cached&&cached.mt===f.mt&&!silent)return cached;
+ if(cached&&cached.mt===f.mt&&cached.v===2&&!silent)return cached;
  if(!navigator.onLine&&cached)return cached;
  try{
   let html,m=f.mime;
@@ -375,7 +382,7 @@ async function loadContent(f,silent){
   else if(m.startsWith('text/')||m==='application/json'){const t=await api(`files/${f.id}`,{alt:'media'},true);html=m==='application/json'?'<pre>'+esc(t)+'</pre>':md(t)}
   else html=null;
   const tmp=document.createElement('div');tmp.innerHTML=html||'';
-  const rec={id:f.id,mt:f.mt,html,text:tmp.textContent.toLowerCase(),at:Date.now()};
+  const rec={id:f.id,mt:f.mt,v:2,html,text:tmp.textContent.toLowerCase(),at:Date.now()};
   if(html!==null)await idb.put(rec);
   return rec;
  }catch(e){if(cached)return cached;throw e}
@@ -397,7 +404,7 @@ function renderHeader(){
   `<h1>${esc(h.title)}${h.sub?`<small>${esc(h.sub)}</small>`:''}</h1>`+
   (h.tools?`<a class="ib" href="#/search" style="color:inherit">${I.search}</a><button class="ib ${ui.syncing?'spin':''}" data-act="sync" aria-label="Làm mới">${I.refresh}</button>`:'');
 }
-function needSetup(){return !cfg.clientId||!idx.rootId&&!cfg.signedIn&&!tokValid()}
+function needSetup(){return !cfg.clientId||!hasRoots()&&!cfg.signedIn&&!tokValid()}
 function banner(){
  let b='';
  if(ui.err==='auth'||(!cfg.signedIn&&cfg.clientId))b+=`<div class="banner"><span>Cần đăng nhập lại Google để cập nhật báo cáo mới.</span><button data-act="signin">Đăng nhập</button></div>`;
@@ -426,11 +433,12 @@ function vLatest(){
  return banner()+chips+(shown.length?groupedRows(shown,true):emptyHTML(idx.at?'Không có báo cáo nào phù hợp.':'Chưa có dữ liệu. Bấm nút làm mới ở góc trên.'))+(list.length>shown.length?`<button class="btn alt full" data-act="more">Xem thêm</button>`:'');
 }
 function vCats(){
- hdrState={title:'Các mục báo cáo',sub:idx.rootName,tools:true};
- if(!idx.cats.length)return banner()+emptyHTML('Chưa có mục nào. Thư mục gốc cần chứa các thư mục con (mỗi thư mục là một mục báo cáo).');
- return banner()+'<div class="grid">'+idx.cats.map(c=>{
-  const fs=idx.files.filter(f=>f.cat===c.id),un=fs.filter(isUnread).length,l=fs[0];
-  return `<a class="cat" href="#/cat/${c.id}"><div class="ic">${I.folder}</div><div class="t"><b>${esc(c.name)}</b><span>${fs.length} báo cáo${l?' · mới nhất '+dmy(l.date):''}</span><span>${l?esc(cleanName(l.name)):''}</span></div>${un?`<i class="badge">${un}</i>`:''}</a>`}).join('')+'</div>';
+ hdrState={title:'Các mục báo cáo',sub:idx.roots.length>1?idx.roots.length+' thư mục nguồn':(idx.roots[0]||{}).name||'',tools:true};
+ if(!idx.cats.length)return banner()+emptyHTML('Chưa có mục nào. Hãy thêm thư mục báo cáo trong Cài đặt.');
+ const card=c=>{const fs=idx.files.filter(f=>f.cat===c.id),un=fs.filter(isUnread).length,l=fs[0];
+  return `<a class="cat" href="#/cat/${c.id}"><div class="ic">${I.folder}</div><div class="t"><b>${esc(c.name)}</b><span>${fs.length} báo cáo${l?' · mới nhất '+dmy(l.date):''}</span><span>${l?esc(cleanName(l.name)):''}</span></div>${un?`<i class="badge">${un}</i>`:''}</a>`};
+ if(idx.roots.length<2)return banner()+'<div class="grid">'+idx.cats.map(card).join('')+'</div>';
+ return banner()+idx.roots.map(r=>{const cs=idx.cats.filter(c=>c.root===r.id);return cs.length?`<div class="day">${esc(r.name)}</div><div class="grid">${cs.map(card).join('')}</div>`:''}).join('');
 }
 function vCat(id){
  const name=catName(id);const fs=idx.files.filter(f=>f.cat===id);
@@ -460,30 +468,30 @@ function vSettings(){
  <div class="sec"><h3>Giao diện đọc</h3>${appearanceHTML()}
   <div class="prev">Báo cáo ngày hôm nay: doanh thu tăng 12% so với hôm qua. Chi tiết xem ở các mục bên dưới.</div></div>
  <div class="sec"><h3>Nguồn báo cáo</h3>
-  <div class="kv"><span>Thư mục gốc</span><span>${esc(idx.rootName||'Chưa chọn')}</span></div>
+  ${idx.roots.map(r=>`<div class="kv" style="align-items:center"><span>${esc(r.name)}</span><button data-act="rmroot" data-id="${r.id}" style="color:#d33;font-size:13px">Xóa</button></div>`).join('')||'<div class="kv"><span>Thư mục</span><span>Chưa chọn</span></div>'}
   <div class="kv"><span>Số báo cáo</span><span>${idx.files.length} · ${idx.cats.length} mục</span></div>
   <div class="kv"><span>Cập nhật lần cuối</span><span>${idx.at?ago(idx.at):'—'}</span></div>
   <div class="kv"><span>Tài khoản Google</span><span>${cfg.signedIn?'Đã đăng nhập':'Chưa đăng nhập'}</span></div>
-  <p style="margin-top:10px"><button class="btn" data-act="pick">Đổi thư mục</button>${cfg.signedIn?`<button class="btn alt" data-act="signout">Đăng xuất</button>`:`<button class="btn" data-act="signin">Đăng nhập</button>`}</p></div>
+  <p style="margin-top:10px"><button class="btn" data-act="pick">+ Thêm thư mục</button>${cfg.signedIn?`<button class="btn alt" data-act="signout">Đăng xuất</button>`:`<button class="btn" data-act="signin">Đăng nhập</button>`}</p></div>
  <div class="sec"><h3>Tải sẵn để đọc offline</h3>
   <div class="ctl" style="margin-top:0"><label><span>Tự tải sẵn số báo cáo mới nhất</span><span id="v-pf">${cfg.prefetch}</span></label><input type="range" min="0" max="60" step="5" value="${cfg.prefetch}" data-pf></div>
   <p><button class="btn alt" data-act="clearcache">Xóa dữ liệu đã tải</button></p></div>
  <div class="sec"><h3>Cập nhật ứng dụng</h3><div class="kv"><span>Phiên bản</span><span>${APP_VERSION}</span></div><p><button class="btn alt" data-act="chkupd">Kiểm tra cập nhật</button></p></div>
- <div class="sec"><h3>Google Client ID</h3><input type="text" id="cid" value="${esc(cfg.clientId)}" placeholder="xxxx.apps.googleusercontent.com"><p><button class="btn alt" data-act="savecid">Lưu Client ID</button></p></div>`;
+ ${DEFAULT_CLIENT_ID?'':`<div class="sec"><h3>Google Client ID</h3><input type="text" id="cid" value="${esc(cfg.clientId)}" placeholder="xxxx.apps.googleusercontent.com"><p><button class="btn alt" data-act="savecid">Lưu Client ID</button></p></div>`}`;
 }
 function vSetup(){
  hdrState={title:'Thiết lập',tools:false};
  if(!cfg.clientId)return `<div class="setup"><h2>Chào mừng 👋</h2><p style="color:var(--mut)">Để app đọc được Google Drive của bạn, cần tạo một <b>Client ID</b> (miễn phí, làm 1 lần). Xem file <code>HUONG-DAN.md</code> đi kèm – khoảng 5 phút. Sau đó dán vào đây:</p>
   <input type="text" id="cid" placeholder="xxxx.apps.googleusercontent.com"><p><button class="btn full" data-act="savecid">Tiếp tục</button></p></div>`;
- if(!cfg.signedIn&&!tokValid())return `<div class="setup"><h2>Đăng nhập Google</h2><p style="color:var(--mut)">App chỉ xin quyền <b>đọc</b> Drive (không sửa/xóa gì).</p><button class="btn full" data-act="signin">Đăng nhập bằng Google</button>${ui.err&&ui.err!=='auth'?`<p style="color:#d33">${esc(ui.err)}</p>`:''}<p><button class="btn alt full" data-act="resetcid">Đổi Client ID</button></p></div>`;
- return `<div class="setup"><h2>Chọn thư mục báo cáo</h2><p style="color:var(--mut)">Chọn thư mục gốc chứa báo cáo. Mỗi <b>thư mục con</b> bên trong sẽ thành một <b>mục</b> riêng trong app.</p><button class="btn full" data-act="pick">Chọn thư mục từ Drive</button></div>`;
+ if(!cfg.signedIn&&!tokValid())return `<div class="setup"><h2>Đăng nhập Google</h2><p style="color:var(--mut)">App chỉ xin quyền <b>đọc</b> Drive (không sửa/xóa gì).</p><button class="btn full" data-act="signin">Đăng nhập bằng Google</button>${ui.err&&ui.err!=='auth'?`<p style="color:#d33">${esc(ui.err)}</p>`:''}${DEFAULT_CLIENT_ID?'':'<p><button class="btn alt full" data-act="resetcid">Đổi Client ID</button></p>'}</div>`;
+ return `<div class="setup"><h2>Chọn thư mục báo cáo</h2><p style="color:var(--mut)">Chọn thư mục chứa báo cáo. Mỗi <b>thư mục con</b> bên trong sẽ thành một <b>mục</b> riêng. Sau này có thể thêm nhiều thư mục khác trong Cài đặt.</p><button class="btn full" data-act="pick">Chọn thư mục từ Drive</button></div>`;
 }
 const PAGES={latest:vLatest,cats:vCats,saved:vSaved,settings:vSettings};
 let scrollMem={},curKey='';
 
 function route(){
  const h=location.hash.replace(/^#\/?/,'')||'latest';const[p,arg]=h.split('/');
- if(needSetup()||!idx.rootId&&p!=='settings'){closeReader();hdrState={};renderNav('');$('#view').innerHTML=vSetup();renderHeader();return}
+ if(needSetup()||!hasRoots()&&p!=='settings'){closeReader();hdrState={};renderNav('');$('#view').innerHTML=vSetup();renderHeader();return}
  if(p==='read'){showMain('latest');openReader(arg);return}
  closeReader();showMain(p,arg);
 }
@@ -583,11 +591,13 @@ function pickRender(){
  ${!atRoot&&top.id!=='shared'?`<button class="btn full" data-act="pkselect">Chọn “${esc(top.name)}”</button>`:''}
  <p style="margin:12px 0 6px;font-size:13px;color:var(--mut)">Hoặc dán link thư mục Drive:</p><input type="text" id="pklink" placeholder="https://drive.google.com/drive/folders/…"><button class="btn alt full" data-act="pklinkgo" style="margin-top:8px">Dùng link này</button></div>`;
 }
-async function setRoot(id,name){
- idx={rootId:id,rootName:name,files:[],cats:[],at:0};LS.set('rp_idx',idx);closeSheet();
- location.hash='#/latest';route();await sync();
+async function addRoot(id,name){
+ closeSheet();name=nfc(name);
+ if(idx.roots.some(r=>r.id===id))return toast('Thư mục này đã có rồi');
+ idx.roots.push({id,name});LS.set('rp_idx',idx);toast('Đã thêm “'+name+'”');
+ if(!location.hash.startsWith('#/settings'))location.hash='#/latest';
+ route();await sync();
 }
-
 /* ---------- sự kiện ---------- */
 document.addEventListener('click',async e=>{
  const el=e.target.closest('[data-act]');if(!el)return;
@@ -595,7 +605,7 @@ document.addEventListener('click',async e=>{
  switch(a){
   case'back':if(navCount>0)history.back();else location.hash=cur?'#/cat/'+cur.cat:'#/latest';break;
   case'sync':if(!navigator.onLine)toast('Đang offline');else{if(!tokValid()&&cfg.signedIn)try{await getToken()}catch{}await sync()}break;
-  case'signin':try{await requestToken(true);ui.err='';toast('Đã đăng nhập');route();if(idx.rootId)sync();}catch(err){toast(/access_denied/.test(err.message)?'Bị từ chối: hãy thêm email của bạn vào Test users trong Google Cloud':/popup/.test(err.message)?'Cửa sổ đăng nhập bị đóng hoặc bị chặn popup':'Đăng nhập không thành công: '+err.message)}break;
+  case'signin':try{await requestToken(true);ui.err='';toast('Đã đăng nhập');route();if(hasRoots())sync();}catch(err){toast(/access_denied/.test(err.message)?'Bị từ chối: hãy thêm email của bạn vào Test users trong Google Cloud':/popup/.test(err.message)?'Cửa sổ đăng nhập bị đóng hoặc bị chặn popup':'Đăng nhập không thành công: '+err.message)}break;
   case'signout':try{if(tok)google.accounts.oauth2.revoke(tok.t)}catch{}tok=null;LS.set('rp_tok',null);cfg.signedIn=false;saveCfg();route();toast('Đã đăng xuất');break;
   case'savecid':{const c=($('#cid').value||'').trim();if(!/\.apps\.googleusercontent\.com$/.test(c))return toast('Client ID không đúng dạng');cfg.clientId=c;saveCfg();route();break}
   case'resetcid':cfg.clientId='';saveCfg();route();break;
@@ -616,10 +626,11 @@ document.addEventListener('click',async e=>{
   case'pick':if(!cfg.signedIn&&!tokValid())return toast('Hãy đăng nhập trước');pk={stack:[{id:'root',name:'Drive của tôi'}],items:[],loading:true,err:''};openSheet('');pickLoad();break;
   case'pkenter':pk.stack.push({id:el.dataset.id,name:el.dataset.n});pickLoad();break;
   case'pkup':pk.stack.pop();pickLoad();break;
-  case'pkselect':{const t=pk.stack[pk.stack.length-1];setRoot(t.id,t.name);break}
-  case'pklinkgo':{const s=($('#pklink').value||'').trim();const m=s.match(/folders\/([\w-]+)/)||s.match(/[?&]id=([\w-]+)/)||s.match(/^([\w-]{20,})$/);if(!m)return toast('Link không hợp lệ');try{const r=await api('files/'+m[1],{fields:'id,name,mimeType',supportsAllDrives:true});if(r.mimeType!==FOLDER)return toast('Đây không phải thư mục');setRoot(r.id,r.name)}catch(err){toast('Không mở được thư mục: '+err.message)}break}
+  case'pkselect':{const t=pk.stack[pk.stack.length-1];addRoot(t.id,t.name);break}
+  case'pklinkgo':{const s=($('#pklink').value||'').trim();const m=s.match(/folders\/([\w-]+)/)||s.match(/[?&]id=([\w-]+)/)||s.match(/^([\w-]{20,})$/);if(!m)return toast('Link không hợp lệ');try{const r=await api('files/'+m[1],{fields:'id,name,mimeType',supportsAllDrives:true});if(r.mimeType!==FOLDER)return toast('Đây không phải thư mục');addRoot(r.id,r.name)}catch(err){toast('Không mở được thư mục: '+err.message)}break}
   case'chkupd':await checkUpdate(true);break;
   case'doupd':await applyUpdate();break;
+  case'rmroot':if(confirm('Bỏ thư mục này khỏi app? (không xóa gì trên Drive)')){idx.roots=idx.roots.filter(r=>r.id!==el.dataset.id);idx.cats=idx.cats.filter(c=>c.root!==el.dataset.id);const ids=new Set(idx.cats.map(c=>c.id));idx.files=idx.files.filter(f=>ids.has(f.cat));LS.set('rp_idx',idx);route()}break;
   case'clearcache':await idb.clear();toast('Đã xóa dữ liệu đã tải');break;
  }
 });
@@ -630,7 +641,7 @@ document.addEventListener('input',e=>{
 window.addEventListener('hashchange',()=>{navCount++;route()});
 window.addEventListener('online',()=>{route();sync()});
 window.addEventListener('offline',route);
-document.addEventListener('visibilitychange',()=>{if(!document.hidden){checkUpdate();if(cur&&cfg.awake&&navigator.wakeLock&&!wake)navigator.wakeLock.request('screen').then(w=>wake=w).catch(()=>{});if(idx.rootId&&Date.now()-idx.at>10*60e3&&navigator.onLine)sync()}});
+document.addEventListener('visibilitychange',()=>{if(!document.hidden){checkUpdate();if(cur&&cfg.awake&&navigator.wakeLock&&!wake)navigator.wakeLock.request('screen').then(w=>wake=w).catch(()=>{});if(hasRoots()&&Date.now()-idx.at>10*60e3&&navigator.onLine)sync()}});
 
 /* ---------- cập nhật ứng dụng ---------- */
 let newVer='';
@@ -655,7 +666,7 @@ async function applyUpdate(){
 applyAppearance();
 if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
 route();
-if(idx.rootId&&cfg.signedIn&&(Date.now()-idx.at>5*60e3))sync();
+if(hasRoots()&&cfg.signedIn&&(Date.now()-idx.at>5*60e3))sync();
 checkUpdate();
 </script>
 </body>
