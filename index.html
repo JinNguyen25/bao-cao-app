@@ -76,7 +76,7 @@ code{background:var(--card);padding:1px 5px;border-radius:5px;font-size:.92em}
 .rbar .ttl{flex:1;min-width:0;font-size:14px;font-weight:600;line-height:1.25;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 .prog{position:absolute;top:0;left:0;height:3px;background:var(--ac);width:0;z-index:4}
 #rscroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
-#article{padding:calc(70px + var(--safe-t)) var(--mg) 110px;font-family:var(--ff);font-size:var(--fs);line-height:var(--lh);text-align:var(--ta);word-wrap:break-word;overflow-wrap:anywhere;max-width:44em;margin:0 auto;hyphens:auto}
+#article{padding:calc(70px + var(--safe-t)) var(--mg) 110px;font-family:var(--ff);font-size:var(--fs);line-height:var(--lh);text-align:var(--ta);word-wrap:break-word;overflow-wrap:break-word;max-width:44em;margin:0 auto;hyphens:auto}
 #article h1,#article h2,#article h3,#article h4{line-height:1.3;margin:1.4em 0 .5em;font-family:var(--ff)}
 #article h1{font-size:1.5em}#article h2{font-size:1.3em}#article h3{font-size:1.15em}
 #article p{margin:0 0 .9em}
@@ -87,7 +87,7 @@ code{background:var(--card);padding:1px 5px;border-radius:5px;font-size:.92em}
 #article hr{border:0;border-top:1px solid var(--line);margin:1.5em 0}
 #article .tw{overflow-x:auto;margin:0 0 1em}
 #article table{border-collapse:collapse;font-size:.88em;font-family:var(--ui);min-width:100%}
-#article td,#article th{border:1px solid var(--line);padding:6px 9px;vertical-align:top}
+#article td,#article th{border:1px solid var(--line);padding:6px 9px;vertical-align:top;min-width:6.5em;overflow-wrap:normal;word-break:normal;hyphens:manual}
 #article th{background:var(--card)}
 #article .meta{font-family:var(--ui);font-size:.7em;color:var(--mut);margin-bottom:1.2em}
 #article .meta h1{font-size:2.1em;color:var(--fg);margin:0 0 .3em;font-family:var(--ff)}
@@ -204,7 +204,7 @@ const FONTS={
  serif:['Georgia','Georgia,"Times New Roman",serif'],
  sans:['Hệ thống','system-ui,-apple-system,"Segoe UI",Roboto,sans-serif'],
  mono:['Đơn cách','ui-monospace,Menlo,Consolas,monospace']};
-const APP_VERSION='2.0.0';
+const APP_VERSION='2.0.1';
 const DEFAULT_CLIENT_ID='261665890535-fa8n69cifr5kpr9k0qvurku6rss3kccd.apps.googleusercontent.com';/* điền Client ID vào đây để khỏi phải nhập trên điện thoại */
 const DEF={clientId:DEFAULT_CLIENT_ID,signedIn:false,theme:'sepia',custom:{bg:'#222831',fg:'#eeeeee'},font:'bevn',size:18,lh:1.75,mg:20,align:'left',awake:false,prefetch:10,lang:'vi',autoTr:true,trUrl:'',readLang:'ui'};
 let cfg=Object.assign({},DEF,LS.get('rp_cfg',{}));
