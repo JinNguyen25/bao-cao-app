@@ -204,7 +204,7 @@ const FONTS={
  serif:['Georgia','Georgia,"Times New Roman",serif'],
  sans:['Hệ thống','system-ui,-apple-system,"Segoe UI",Roboto,sans-serif'],
  mono:['Đơn cách','ui-monospace,Menlo,Consolas,monospace']};
-const APP_VERSION='1.8.0';
+const APP_VERSION='1.8.1';
 const DEFAULT_CLIENT_ID='261665890535-fa8n69cifr5kpr9k0qvurku6rss3kccd.apps.googleusercontent.com';/* điền Client ID vào đây để khỏi phải nhập trên điện thoại */
 const DEF={clientId:DEFAULT_CLIENT_ID,signedIn:false,theme:'sepia',custom:{bg:'#222831',fg:'#eeeeee'},font:'bevn',size:18,lh:1.75,mg:20,align:'left',awake:false,prefetch:10,lang:'vi',autoTr:true,trUrl:'',readLang:'ui'};
 let cfg=Object.assign({},DEF,LS.get('rp_cfg',{}));
@@ -742,7 +742,7 @@ document.addEventListener('input',e=>{
 window.addEventListener('hashchange',()=>{navCount++;route()});
 window.addEventListener('online',()=>{route();sync()});
 window.addEventListener('offline',route);
-document.addEventListener('visibilitychange',()=>{if(document.hidden)syncNow(false);if(!document.hidden){syncNow(false);checkUpdate();if(cur&&cfg.awake&&navigator.wakeLock&&!wake)navigator.wakeLock.request('screen').then(w=>wake=w).catch(()=>{});if(hasRoots()&&Date.now()-idx.at>10*60e3&&navigator.onLine)sync()}});
+document.addEventListener('visibilitychange',()=>{if(document.hidden)syncNow(false);if(!document.hidden){syncNow(false);checkUpdate();if(cur&&cfg.awake&&navigator.wakeLock&&!wake)navigator.wakeLock.request('screen').then(w=>wake=w).catch(()=>{});if(hasRoots()&&Date.now()-idx.at>2*60e3&&navigator.onLine&&tokValid())sync()}});
 
 
 /* ---------- đa ngôn ngữ giao diện (vi / en / ja) ---------- */
@@ -1161,7 +1161,7 @@ async function applyUpdate(){
 applyAppearance();document.documentElement.lang=cfg.lang;trTree(document.body);
 if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
 route();
-if(hasRoots()&&cfg.signedIn&&(Date.now()-idx.at>5*60e3))sync();
+if(hasRoots()&&cfg.signedIn&&tokValid())sync();
 checkUpdate();setTimeout(()=>syncNow(false),1500);
 </script>
 </body>
