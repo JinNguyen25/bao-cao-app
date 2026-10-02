@@ -204,9 +204,9 @@ const FONTS={
  serif:['Georgia','Georgia,"Times New Roman",serif'],
  sans:['Hệ thống','system-ui,-apple-system,"Segoe UI",Roboto,sans-serif'],
  mono:['Đơn cách','ui-monospace,Menlo,Consolas,monospace']};
-const APP_VERSION='1.6.3';
+const APP_VERSION='1.7.0';
 const DEFAULT_CLIENT_ID='261665890535-fa8n69cifr5kpr9k0qvurku6rss3kccd.apps.googleusercontent.com';/* điền Client ID vào đây để khỏi phải nhập trên điện thoại */
-const DEF={clientId:DEFAULT_CLIENT_ID,signedIn:false,theme:'sepia',custom:{bg:'#222831',fg:'#eeeeee'},font:'bevn',size:18,lh:1.75,mg:20,align:'left',awake:false,prefetch:10,lang:'vi',autoTr:true,trUrl:''};
+const DEF={clientId:DEFAULT_CLIENT_ID,signedIn:false,theme:'sepia',custom:{bg:'#222831',fg:'#eeeeee'},font:'bevn',size:18,lh:1.75,mg:20,align:'left',awake:false,prefetch:10,lang:'vi',autoTr:true,trUrl:'',readLang:'ui'};
 let cfg=Object.assign({},DEF,LS.get('rp_cfg',{}));
 if(!cfg.fontV){cfg.fontV=2;cfg.font='bevn';cfg.size=Math.min(cfg.size,18);LS.set('rp_cfg',cfg)}
 if(!FONTS[cfg.font])cfg.font='bevn';
@@ -523,6 +523,7 @@ function vSettings(){
  return `
  <div class="sec"><h3>Ngôn ngữ</h3><div class="seg">${lb('lang','vi','Tiếng Việt')}${lb('lang','en','English')}${lb('lang','ja','日本語')}</div>
   <div class="ctl"><label>Tự dịch báo cáo sang ngôn ngữ này</label><div class="seg">${lb('autoTr','true','Bật')}${lb('autoTr','false','Tắt')}</div></div>
+  <div class="ctl"><label>Ngôn ngữ đọc báo cáo</label><div class="seg">${lb('readLang','ui','Theo app')}${lb('readLang','orig','Gốc')}${lb('readLang','vi','Tiếng Việt')}${lb('readLang','en','English')}${lb('readLang','ja','日本語')}</div></div>
   ${cfg.trUrl?`<p style="color:var(--fg)">✓ Đã kết nối dịch &nbsp;<button class="btn alt" data-act="testtr" style="padding:6px 12px;font-size:13px">Thử dịch</button> <button data-act="trreset" style="color:var(--mut);font-size:13px;margin-left:6px">Đổi</button></p>`:`<p>Dán địa chỉ Apps Script dịch (xem HUONG-DAN.md). Cần để tự dịch báo cáo.</p>
   <input type="text" id="tru" value="" placeholder="https://script.google.com/macros/s/…/exec">
   <p><button class="btn" data-act="savetr">Lưu</button></p>`}</div>
@@ -679,7 +680,7 @@ document.addEventListener('click',async e=>{
   case'more':ui.limit+=60;route();break;
   case'readall':idx.files.filter(f=>f.cat===v).forEach(f=>readMap[f.id]=f.mt);LS.set('rp_read',readMap);route();break;
   case'theme':cfg.theme=v;saveCfg();applyAppearance();el.parentElement.querySelectorAll('button').forEach(b=>b.classList.toggle('on',b===el));const cc=document.getElementById('customColors');if(cc)cc.style.display=v==='custom'?'flex':'none';break;
-  case'set':{const k=el.dataset.k;cfg[k]=(k==='awake'||k==='autoTr')?v==='true':v;saveCfg();applyAppearance();el.parentElement.querySelectorAll('button').forEach(b=>b.classList.toggle('on',b===el));if(k==='lang')langChanged();if(k==='autoTr'){if(cur)langChanged();else ensureNames()}}break;
+  case'set':{const k=el.dataset.k;cfg[k]=(k==='awake'||k==='autoTr')?v==='true':v;saveCfg();applyAppearance();el.parentElement.querySelectorAll('button').forEach(b=>b.classList.toggle('on',b===el));if(k==='lang')langChanged();if(k==='readLang')setReaderLang();if(k==='autoTr'){if(cur)langChanged();else ensureNames()}}break;
   case'rset':openSheet(`<h2>Giao diện đọc <button class="ib" data-act="closesheet">✕</button></h2>${appearanceHTML()}`,bindAppearance);break;
   case'closesheet':closeSheet();break;
   case'bm':if(cur){if(bm[cur.id])delete bm[cur.id];else bm[cur.id]=1;LS.set('rp_bm',bm);setBm();toast(bm[cur.id]?'Đã lưu':'Đã bỏ lưu')}break;
@@ -716,8 +717,10 @@ document.addEventListener('click',async e=>{
   case'savetr':{const u=($('#tru').value||'').trim();if(!/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(u))return toast('Địa chỉ không đúng dạng');cfg.trUrl=u;saveCfg();toast('Đã lưu địa chỉ dịch');ensureNames();route();break}
   case'trreset':cfg.trUrl='';saveCfg();route();break;
   case'testtr':{if(!cfg.trUrl)return toast('Chưa nhập địa chỉ dịch');try{const o=await trBatch(['Xin chào, đây là bản thử.'],cfg.lang==='vi'?'en':cfg.lang);toast(o[0])}catch(err){toast('Dịch lỗi: '+err.message)}break}
-  case'trtoggle':{if(!cur)break;if(!cfg.trUrl)return toast('Chưa cài dịch tự động (xem Cài đặt)');ui.showOrig=!ui.showOrig;const f=cur,c=await idb.get(f.id);
-   if(ui.showOrig){if(c&&c.html!==null){$('#rbody').innerHTML=c.html;if($('#trs'))$('#trs').textContent='Bản gốc'}}else applyTranslation(f);break}
+  case'trtoggle':{if(!cur)break;if(!cfg.trUrl)return toast('Chưa cài dịch tự động (xem Cài đặt)');
+   const cr=cfg.readLang||'ui',opt=[['ui','Theo ngôn ngữ app'],['orig','Bản gốc'],['vi','Tiếng Việt'],['en','English'],['ja','日本語']];
+   openSheet(`<h2>Ngôn ngữ báo cáo <button class="ib" data-act="closesheet">✕</button></h2>`+opt.map(([v,l])=>`<button class="fl" data-act="readlang" data-v="${v}"><b>${l}</b>${cr===v?'<span style="margin-left:auto;color:var(--ac)">✓</span>':''}</button>`).join(''));break}
+  case'readlang':cfg.readLang=v;saveCfg();closeSheet();setReaderLang();break;
   case'chkupd':await checkUpdate(true);break;
   case'doupd':await applyUpdate();break;
   case'rmroot':if(confirm(T('Bỏ thư mục này khỏi app? (không xóa gì trên Drive)'))){idx.roots=idx.roots.filter(r=>r.id!==el.dataset.id);idx.cats=idx.cats.filter(c=>c.root!==el.dataset.id);const ids=new Set(idx.cats.map(c=>c.id));idx.files=idx.files.filter(f=>ids.has(f.cat));LS.set('rp_idx',idx);route()}break;
@@ -817,6 +820,7 @@ const D={
 'Cần cài địa chỉ dịch (Apps Script) để tra từ':['Set up the translation Apps Script URL to look up words','単語検索には翻訳Apps ScriptのURL設定が必要です'],
 'Đã xóa từ':['Word removed','単語を削除しました'],'Không có từ nào cần ôn':['Nothing to review','復習する単語はありません'],'Đã lưu từ':['Word saved','単語を保存しました'],
 'Đã kết nối dịch':['Translation connected','翻訳に接続済み'],'Đổi':['Change','変更'],'Đăng nhập lâu dài (chưa bật)':['Stay signed in (not enabled)','ログイン維持（未有効）'],'Địa chỉ không đúng dạng':['Invalid URL format','URLの形式が正しくありません'],
+'Ngôn ngữ báo cáo':['Report language','レポートの言語'],'Ngôn ngữ đọc báo cáo':['Report reading language','レポートの閲覧言語'],'Theo ngôn ngữ app':['Same as app language','アプリの言語に合わせる'],'Theo app':['Same as app','アプリに合わせる'],'Gốc':['Original','原文'],
 'Lưu':['Save','保存'],'Thử dịch':['Test','テスト'],
 'Đang dịch…':['Translating…','翻訳中…'],'Bản dịch tự động':['Auto-translated','自動翻訳'],'Bản gốc':['Original','原文'],'Không dịch được':['Translation failed','翻訳できませんでした'],
 'Xem bản gốc / bản dịch':['Toggle original / translation','原文／翻訳を切り替え'],'Chưa cài dịch tự động (xem Cài đặt)':['Auto-translation is not set up (see Settings)','自動翻訳が未設定です（設定を参照）'],
@@ -903,9 +907,18 @@ async function translateHtml(html,tl){
  nodes.forEach((n,i)=>{if(res[i]!=null){const lead=n.nodeValue.match(/^\s*/)[0],trail=n.nodeValue.match(/\s*$/)[0];n.nodeValue=lead+res[i]+trail}});
  return box.innerHTML;
 }
+const targetLang=()=>{const r=cfg.readLang||'ui';if(r==='orig')return null;if(r==='ui')return cfg.autoTr?cfg.lang:null;return r};
+async function setReaderLang(){
+ if(!cur)return;const f=cur;ui.showOrig=false;
+ const c=await idb.get(f.id);if(!c||c.html===null||!$('#rbody'))return;
+ const ratio=RS.scrollTop/Math.max(1,RS.scrollHeight-RS.clientHeight);
+ $('#rbody').innerHTML=c.html;RS.scrollTop=ratio*(RS.scrollHeight-RS.clientHeight);
+ const st=$('#trs');if(st)st.textContent=targetLang()?'':'Bản gốc';
+ if(targetLang())applyTranslation(f);
+}
 async function applyTranslation(f){
- if(ui.showOrig||!cfg.autoTr||!cfg.trUrl)return;
- const tl=cfg.lang,st=()=>$('#trs');
+ const tl=targetLang(),st=()=>$('#trs');
+ if(ui.showOrig||!tl||!cfg.trUrl)return;
  try{
   const key=f.id+'|'+tl;let rec=await idb.get(key);
   if(!(rec&&rec.mt===f.mt&&rec.v===2)){
