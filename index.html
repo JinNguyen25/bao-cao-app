@@ -175,7 +175,7 @@ const THEMES={
  black:{n:'Đen',bg:'#000000',fg:'#9a9a9a',ac:'#6a9fe8'}
 };
 const FONTS={serif:['Có chân','Georgia,"Noto Serif","Times New Roman",serif'],sans:['Không chân','system-ui,-apple-system,"Segoe UI",Roboto,sans-serif'],mono:['Đơn cách','ui-monospace,Menlo,Consolas,monospace']};
-const APP_VERSION='1.2.0';
+const APP_VERSION='1.3.0';
 const DEFAULT_CLIENT_ID='261665890535-fa8n69cifr5kpr9k0qvurku6rss3kccd.apps.googleusercontent.com';/* điền Client ID vào đây để khỏi phải nhập trên điện thoại */
 const DEF={clientId:DEFAULT_CLIENT_ID,signedIn:false,theme:'sepia',custom:{bg:'#222831',fg:'#eeeeee'},font:'serif',size:19,lh:1.7,mg:20,align:'left',awake:false,prefetch:10};
 let cfg=Object.assign({},DEF,LS.get('rp_cfg',{}));
@@ -229,6 +229,7 @@ const tokValid=()=>tok&&tok.exp>Date.now()+60000;
 async function waitGIS(){for(let i=0;i<40;i++){if(window.google&&google.accounts&&google.accounts.oauth2)return true;await new Promise(r=>setTimeout(r,150))}return false}
 async function requestToken(interactive){
  if(!cfg.clientId)throw new Error('Chưa có Client ID');
+ if(interactive&&SEC())return codeLogin();
  if(!await waitGIS())throw new Error('Không tải được dịch vụ Google (đang offline?)');
  return new Promise((res,rej)=>{
   const c=google.accounts.oauth2.initTokenClient({client_id:cfg.clientId,scope:SCOPE,prompt:interactive?'':'none',
@@ -237,7 +238,31 @@ async function requestToken(interactive){
   c.requestAccessToken();
  });
 }
-async function getToken(){if(tokValid())return tok.t;if(!cfg.signedIn)throw new Error('auth');try{return await requestToken(false)}catch{throw new Error('auth')}}
+const RT={get:()=>LS.get('rp_rt',null),set:v=>LS.set('rp_rt',v)};
+const SEC=()=>LS.get('rp_sec','');
+async function tokenPost(params){
+ const r=await fetch('https://oauth2.googleapis.com/token',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({client_id:cfg.clientId,client_secret:SEC(),...params})});
+ const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error||'token');return j;
+}
+function setTok(j){tok={t:j.access_token,exp:Date.now()+(j.expires_in||3600)*1000};LS.set('rp_tok',tok);cfg.signedIn=true;saveCfg();return tok.t}
+async function codeLogin(){
+ if(!await waitGIS())throw new Error('Không tải được dịch vụ Google (đang offline?)');
+ return new Promise((res,rej)=>{
+  const c=google.accounts.oauth2.initCodeClient({client_id:cfg.clientId,scope:SCOPE,ux_mode:'popup',
+   callback:async r=>{if(r.error)return rej(new Error(r.error));try{const j=await tokenPost({grant_type:'authorization_code',code:r.code,redirect_uri:'postmessage'});if(j.refresh_token)RT.set(j.refresh_token);res(setTok(j))}catch(e){rej(e)}},
+   error_callback:e=>rej(new Error(e.type||'popup_closed'))});
+  c.requestCode();
+ });
+}
+async function getToken(){
+ if(tokValid())return tok.t;
+ if(RT.get()&&SEC()){
+  try{return setTok(await tokenPost({grant_type:'refresh_token',refresh_token:RT.get()}))}
+  catch(e){if(e.message==='invalid_grant'||e.message==='invalid_client'||e.message==='unauthorized_client'){RT.set(null);throw new Error('auth')}throw e}
+ }
+ if(!cfg.signedIn)throw new Error('auth');
+ try{return await requestToken(false)}catch{throw new Error('auth')}
+}
 async function api(path,params,raw){
  for(let attempt=0;attempt<2;attempt++){
   const t=await getToken();
@@ -476,6 +501,8 @@ function vSettings(){
  <div class="sec"><h3>Tải sẵn để đọc offline</h3>
   <div class="ctl" style="margin-top:0"><label><span>Tự tải sẵn số báo cáo mới nhất</span><span id="v-pf">${cfg.prefetch}</span></label><input type="range" min="0" max="60" step="5" value="${cfg.prefetch}" data-pf></div>
   <p><button class="btn alt" data-act="clearcache">Xóa dữ liệu đã tải</button></p></div>
+ <div class="sec"><h3>Đăng nhập lâu dài</h3>
+  ${RT.get()&&SEC()?`<p style="color:var(--fg)">✓ Đã bật – app tự gia hạn, không cần đăng nhập lại.</p><p><button class="btn alt" data-act="disablelt">Tắt</button></p>`:`<p>Dán <b>Client secret</b> của Client ID (Google Cloud → Clients → chọn client → Client secrets) để app tự đăng nhập, khỏi phải bấm lại mỗi giờ. Chỉ lưu trên máy này.</p><input type="password" id="sec" placeholder="GOCSPX-…" autocomplete="off"><p><button class="btn" data-act="enablelt">Bật đăng nhập lâu dài</button></p>`}</div>
  <div class="sec"><h3>Cập nhật ứng dụng</h3><div class="kv"><span>Phiên bản</span><span>${APP_VERSION}</span></div><p><button class="btn alt" data-act="chkupd">Kiểm tra cập nhật</button></p></div>
  ${DEFAULT_CLIENT_ID?'':`<div class="sec"><h3>Google Client ID</h3><input type="text" id="cid" value="${esc(cfg.clientId)}" placeholder="xxxx.apps.googleusercontent.com"><p><button class="btn alt" data-act="savecid">Lưu Client ID</button></p></div>`}`;
 }
@@ -483,7 +510,7 @@ function vSetup(){
  hdrState={title:'Thiết lập',tools:false};
  if(!cfg.clientId)return `<div class="setup"><h2>Chào mừng 👋</h2><p style="color:var(--mut)">Để app đọc được Google Drive của bạn, cần tạo một <b>Client ID</b> (miễn phí, làm 1 lần). Xem file <code>HUONG-DAN.md</code> đi kèm – khoảng 5 phút. Sau đó dán vào đây:</p>
   <input type="text" id="cid" placeholder="xxxx.apps.googleusercontent.com"><p><button class="btn full" data-act="savecid">Tiếp tục</button></p></div>`;
- if(!cfg.signedIn&&!tokValid())return `<div class="setup"><h2>Đăng nhập Google</h2><p style="color:var(--mut)">App chỉ xin quyền <b>đọc</b> Drive (không sửa/xóa gì).</p><button class="btn full" data-act="signin">Đăng nhập bằng Google</button>${ui.err&&ui.err!=='auth'?`<p style="color:#d33">${esc(ui.err)}</p>`:''}${DEFAULT_CLIENT_ID?'':'<p><button class="btn alt full" data-act="resetcid">Đổi Client ID</button></p>'}</div>`;
+ if(!cfg.signedIn&&!tokValid())return `<div class="setup"><h2>Đăng nhập Google</h2><p style="color:var(--mut)">App chỉ xin quyền <b>đọc</b> Drive (không sửa/xóa gì).</p><input type="password" id="sec" placeholder="Client secret (khuyên dùng, để khỏi đăng nhập lại)" autocomplete="off" value="${esc(SEC())}" style="margin-bottom:10px"><button class="btn full" data-act="signin">Đăng nhập bằng Google</button>${ui.err&&ui.err!=='auth'?`<p style="color:#d33">${esc(ui.err)}</p>`:''}${DEFAULT_CLIENT_ID?'':'<p><button class="btn alt full" data-act="resetcid">Đổi Client ID</button></p>'}</div>`;
  return `<div class="setup"><h2>Chọn thư mục báo cáo</h2><p style="color:var(--mut)">Chọn thư mục chứa báo cáo. Mỗi <b>thư mục con</b> bên trong sẽ thành một <b>mục</b> riêng. Sau này có thể thêm nhiều thư mục khác trong Cài đặt.</p><button class="btn full" data-act="pick">Chọn thư mục từ Drive</button></div>`;
 }
 const PAGES={latest:vLatest,cats:vCats,saved:vSaved,settings:vSettings};
@@ -605,8 +632,8 @@ document.addEventListener('click',async e=>{
  switch(a){
   case'back':if(navCount>0)history.back();else location.hash=cur?'#/cat/'+cur.cat:'#/latest';break;
   case'sync':if(!navigator.onLine)toast('Đang offline');else{if(!tokValid()&&cfg.signedIn)try{await getToken()}catch{}await sync()}break;
-  case'signin':try{await requestToken(true);ui.err='';toast('Đã đăng nhập');route();if(hasRoots())sync();}catch(err){toast(/access_denied/.test(err.message)?'Bị từ chối: hãy thêm email của bạn vào Test users trong Google Cloud':/popup/.test(err.message)?'Cửa sổ đăng nhập bị đóng hoặc bị chặn popup':'Đăng nhập không thành công: '+err.message)}break;
-  case'signout':try{if(tok)google.accounts.oauth2.revoke(tok.t)}catch{}tok=null;LS.set('rp_tok',null);cfg.signedIn=false;saveCfg();route();toast('Đã đăng xuất');break;
+  case'signin':try{const sv=document.getElementById('sec');if(sv&&sv.value.trim())LS.set('rp_sec',sv.value.trim());await requestToken(true);ui.err='';toast('Đã đăng nhập');route();if(hasRoots())sync();}catch(err){toast(/access_denied/.test(err.message)?'Bị từ chối: hãy thêm email của bạn vào Test users trong Google Cloud':/popup/.test(err.message)?'Cửa sổ đăng nhập bị đóng hoặc bị chặn popup':'Đăng nhập không thành công: '+err.message)}break;
+  case'signout':try{if(tok)google.accounts.oauth2.revoke(tok.t)}catch{}tok=null;LS.set('rp_tok',null);RT.set(null);cfg.signedIn=false;saveCfg();route();toast('Đã đăng xuất');break;
   case'savecid':{const c=($('#cid').value||'').trim();if(!/\.apps\.googleusercontent\.com$/.test(c))return toast('Client ID không đúng dạng');cfg.clientId=c;saveCfg();route();break}
   case'resetcid':cfg.clientId='';saveCfg();route();break;
   case'filter':ui.filter=v;ui.unreadOnly=false;ui.limit=60;route();break;
@@ -628,6 +655,13 @@ document.addEventListener('click',async e=>{
   case'pkup':pk.stack.pop();pickLoad();break;
   case'pkselect':{const t=pk.stack[pk.stack.length-1];addRoot(t.id,t.name);break}
   case'pklinkgo':{const s=($('#pklink').value||'').trim();const m=s.match(/folders\/([\w-]+)/)||s.match(/[?&]id=([\w-]+)/)||s.match(/^([\w-]{20,})$/);if(!m)return toast('Link không hợp lệ');try{const r=await api('files/'+m[1],{fields:'id,name,mimeType',supportsAllDrives:true});if(r.mimeType!==FOLDER)return toast('Đây không phải thư mục');addRoot(r.id,r.name)}catch(err){toast('Không mở được thư mục: '+err.message)}break}
+  case'enablelt':{const v=(document.getElementById('sec').value||'').trim();if(!/^GOCSPX-/.test(v)&&v.length<20)return toast('Client secret không đúng dạng');LS.set('rp_sec',v);
+   try{if(tok&&window.google&&google.accounts)await new Promise(r=>{google.accounts.oauth2.revoke(tok.t,r);setTimeout(r,2500)});tok=null;LS.set('rp_tok',null);
+    await codeLogin();
+    if(RT.get()){toast('Đã bật đăng nhập lâu dài');ui.err='';route();sync()}
+    else toast('Google chưa cấp quyền gia hạn. Vào myaccount.google.com/permissions gỡ quyền của app rồi thử lại');
+   }catch(err){toast('Không bật được: '+(err.message==='invalid_client'?'Client secret sai':err.message))}break}
+  case'disablelt':RT.set(null);LS.set('rp_sec','');route();toast('Đã tắt');break;
   case'chkupd':await checkUpdate(true);break;
   case'doupd':await applyUpdate();break;
   case'rmroot':if(confirm('Bỏ thư mục này khỏi app? (không xóa gì trên Drive)')){idx.roots=idx.roots.filter(r=>r.id!==el.dataset.id);idx.cats=idx.cats.filter(c=>c.root!==el.dataset.id);const ids=new Set(idx.cats.map(c=>c.id));idx.files=idx.files.filter(f=>ids.has(f.cat));LS.set('rp_idx',idx);route()}break;
