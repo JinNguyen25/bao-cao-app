@@ -1,7 +1,6 @@
 // Dán toàn bộ file này vào https://script.google.com (Dự án mới) rồi Deploy > Web app
 // Execute as: Me | Who has access: Anyone
 // Dùng cho: (1) tự dịch báo cáo, (2) tra từ điển Anh/Nhật + nghĩa tiếng Việt
-
 function json(o) {
   return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON);
 }
@@ -20,32 +19,41 @@ function doPost(e) {
   }
 }
 
-function jishoFirst(q) {
-  var r = UrlFetchApp.fetch('https://jisho.org/api/v1/search/words?keyword=' + encodeURIComponent(q), { muteHttpExceptions: true });
-  return (JSON.parse(r.getContentText()).data || [])[0];
+function jotobaFirst(q) {
+  var r = UrlFetchApp.fetch('https://jotoba.de/api/search/words', {
+    method: 'post', contentType: 'application/json',
+    payload: JSON.stringify({ query: q, language: 'English', no_english: false }),
+    muteHttpExceptions: true
+  });
+  return (JSON.parse(r.getContentText()).words || [])[0];
+}
+
+function posText(p) {
+  if (typeof p === 'string') return p;
+  return Object.keys(p).map(function (k) { return k + (p[k] && typeof p[k] === 'string' ? ' ' + p[k] : ''); }).join(' ');
 }
 
 function dictLookup(word, lang, ext) {
   var out = { word: word, reading: '', pos: '', en: [], vi: '', jlpt: '' };
   try {
     if (lang === 'ja') {
-      // thử cả cụm có đuôi chia động từ (食べます), nếu không khớp thì dùng đúng từ đã chạm
       var d = null;
       if (ext && ext !== word) {
-        var d1 = jishoFirst(ext);
+        var d1 = jotobaFirst(ext);
         if (d1) {
-          var ok = d1.japanese.some(function (x) { var w = x.word || x.reading || ''; var stem = w.length > 1 ? w.slice(0, -1) : w; return stem && ext.indexOf(stem) === 0; });
-          if (ok) d = d1;
+          var w = d1.reading.kanji || d1.reading.kana || '';
+          var stem = w.length > 1 ? w.slice(0, -1) : w;
+          if (stem && ext.indexOf(stem) === 0) d = d1;
         }
       }
-      if (!d) d = jishoFirst(word);
+      if (!d) d = jotobaFirst(word);
       if (d) {
-        var jp = d.japanese[0] || {};
-        out.word = jp.word || jp.reading || word;
-        out.reading = jp.reading || '';
-        out.pos = ((d.senses[0] || {}).parts_of_speech || []).join(', ');
-        out.en = d.senses.slice(0, 3).map(function (s) { return s.english_definitions.slice(0, 4).join('; '); });
-        out.jlpt = (d.jlpt || []).map(function (x) { return x.replace('jlpt-', '').toUpperCase(); }).join(',');
+        out.word = d.reading.kanji || d.reading.kana || word;
+        out.reading = d.reading.kana || '';
+        var s0 = d.senses[0] || {};
+        out.pos = (s0.pos || []).map(posText).join(', ');
+        out.en = d.senses.slice(0, 3).map(function (s) { return s.glosses.slice(0, 4).join('; '); });
+        if (d.jlpt_lvl) out.jlpt = 'N' + d.jlpt_lvl;
       }
     } else {
       var r2 = UrlFetchApp.fetch('https://api.dictionaryapi.dev/api/v2/entries/en/' + encodeURIComponent(word.toLowerCase()), { muteHttpExceptions: true });
@@ -59,12 +67,12 @@ function dictLookup(word, lang, ext) {
         }
       }
     }
-  } catch (err) { /* vẫn trả về bản dịch bên dưới */ }
+  } catch (err) { out.err = String(err); }
   var src = lang === 'ja' ? 'ja' : 'en';
   out.vi = LanguageApp.translate(out.word, src, 'vi');
   if (out.en.length) {
-    var vi = LanguageApp.translate(out.en.join('\n'), 'en', 'vi').split('\n');
-    if (vi.length === out.en.length) out.vi = out.vi + ' — ' + vi[0];
+    var viDef = LanguageApp.translate(out.en[0].replace(/;/g, ','), 'en', 'vi');
+    if (viDef && viDef.toLowerCase() !== out.vi.toLowerCase()) out.vi = out.vi + ' — ' + viDef;
   }
   return out;
 }

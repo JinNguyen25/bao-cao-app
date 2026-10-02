@@ -204,7 +204,7 @@ const FONTS={
  serif:['Georgia','Georgia,"Times New Roman",serif'],
  sans:['Hệ thống','system-ui,-apple-system,"Segoe UI",Roboto,sans-serif'],
  mono:['Đơn cách','ui-monospace,Menlo,Consolas,monospace']};
-const APP_VERSION='1.6.0';
+const APP_VERSION='1.6.1';
 const DEFAULT_CLIENT_ID='261665890535-fa8n69cifr5kpr9k0qvurku6rss3kccd.apps.googleusercontent.com';/* điền Client ID vào đây để khỏi phải nhập trên điện thoại */
 const DEF={clientId:DEFAULT_CLIENT_ID,signedIn:false,theme:'sepia',custom:{bg:'#222831',fg:'#eeeeee'},font:'bevn',size:18,lh:1.75,mg:20,align:'left',awake:false,prefetch:10,lang:'vi',autoTr:true,trUrl:''};
 let cfg=Object.assign({},DEF,LS.get('rp_cfg',{}));
@@ -1066,6 +1066,8 @@ async function applyUpdate(){
 }
 
 /* ---------- khởi động ---------- */
+(function(){try{const q=new URLSearchParams(location.search).get('tr');
+ if(q&&/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(q)){cfg.trUrl=q;saveCfg();history.replaceState(null,'',location.pathname+location.hash);setTimeout(()=>{toast('Đã lưu địa chỉ dịch');ensureNames()},600)}}catch{}})();
 applyAppearance();document.documentElement.lang=cfg.lang;trTree(document.body);
 if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
 route();
