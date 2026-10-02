@@ -211,7 +211,7 @@ const FONTS={
  serif:['Georgia','Georgia,"Times New Roman",serif'],
  sans:['Hệ thống','system-ui,-apple-system,"Segoe UI",Roboto,sans-serif'],
  mono:['Đơn cách','ui-monospace,Menlo,Consolas,monospace']};
-const APP_VERSION='2.2.0';
+const APP_VERSION='2.2.1';
 const DEFAULT_CLIENT_ID='261665890535-fa8n69cifr5kpr9k0qvurku6rss3kccd.apps.googleusercontent.com';/* điền Client ID vào đây để khỏi phải nhập trên điện thoại */
 const DEF={clientId:DEFAULT_CLIENT_ID,signedIn:false,theme:'sepia',custom:{bg:'#222831',fg:'#eeeeee'},font:'bevn',size:18,lh:1.75,mg:20,align:'left',awake:false,prefetch:10,lang:'vi',autoTr:true,trUrl:'',readLang:'ui',viTts:'google'};
 let cfg=Object.assign({},DEF,LS.get('rp_cfg',{}));
@@ -1205,7 +1205,7 @@ function dictRender(){
 }
 async function showDict(word,lang,ctx,ext,block){
  trView=null;dictCur={word,lang,ctx,block:block||ctx,res:null};const card=$('#dict');card.classList.add('on');dictRender();
- try{const r=await lookup(word,lang,ext,p=>{if(dictCur&&dictCur.word===word){dictCur.res={...p,_p:1};dictRender();speak(speakText({lang,word:p.word||word,reading:p.reading}),lang)}});if(!dictCur||dictCur.word!==word)return;delete r._p;dictCur.res=r;dictRender()}
+ try{const r=await lookup(word,lang,ext,p=>{if(dictCur&&dictCur.word===word){dictCur.res={...p,_p:1};dictRender()}});if(!dictCur||dictCur.word!==word)return;delete r._p;dictCur.res=r;dictRender()}
  catch(e){if(dictCur&&dictCur.word===word)card.innerHTML=`<div class="dh"><b class="dw">${esc(word)}</b><button class="ib" data-act="dclose">✕</button></div><div class="de">${esc(T('Không tra được: ')+T(e.message))}</div>`}
 }
 function dictTap(e){
