@@ -204,7 +204,7 @@ const FONTS={
  serif:['Georgia','Georgia,"Times New Roman",serif'],
  sans:['Hệ thống','system-ui,-apple-system,"Segoe UI",Roboto,sans-serif'],
  mono:['Đơn cách','ui-monospace,Menlo,Consolas,monospace']};
-const APP_VERSION='1.9.0';
+const APP_VERSION='2.0.0';
 const DEFAULT_CLIENT_ID='261665890535-fa8n69cifr5kpr9k0qvurku6rss3kccd.apps.googleusercontent.com';/* điền Client ID vào đây để khỏi phải nhập trên điện thoại */
 const DEF={clientId:DEFAULT_CLIENT_ID,signedIn:false,theme:'sepia',custom:{bg:'#222831',fg:'#eeeeee'},font:'bevn',size:18,lh:1.75,mg:20,align:'left',awake:false,prefetch:10,lang:'vi',autoTr:true,trUrl:'',readLang:'ui'};
 let cfg=Object.assign({},DEF,LS.get('rp_cfg',{}));
@@ -1031,13 +1031,54 @@ function wordAt(x,y){
  const range=document.createRange();range.setStart(node,a);range.setEnd(node,b);
  return{word,ext,lang,ctx:ctx.trim().slice(0,220),range};
 }
-async function lookup(word,lang,ext){
+const POS={n:'noun',v:'verb',adj:'adjective',adv:'adverb'};
+function enCandidates(w){
+ w=w.toLowerCase();const c=[w];
+ if(/ies$/.test(w))c.push(w.slice(0,-3)+'y');
+ if(/(ses|xes|zes|ches|shes)$/.test(w))c.push(w.slice(0,-2));
+ if(/s$/.test(w))c.push(w.slice(0,-1));
+ if(/ied$/.test(w))c.push(w.slice(0,-3)+'y');
+ if(/ed$/.test(w)){c.push(w.slice(0,-2));c.push(w.slice(0,-1));if(/(.)\1ed$/.test(w))c.push(w.slice(0,-3))}
+ if(/ing$/.test(w)){c.push(w.slice(0,-3));c.push(w.slice(0,-3)+'e');if(/(.)\1ing$/.test(w))c.push(w.slice(0,-4))}
+ return[...new Set(c)].filter(x=>x.length>1);
+}
+async function dictEn(word){
+ for(const c of enCandidates(word)){
+  const r=await fetch('https://api.datamuse.com/words?sp='+encodeURIComponent(c)+'&md=d&max=1');
+  if(!r.ok)continue;const j=await r.json();const e=j[0];
+  if(e&&e.word===c&&e.defs&&e.defs.length){
+   const defs=e.defs.map(d=>{const i=d.indexOf('\t');return{pos:POS[d.slice(0,i)]||'',t:d.slice(i+1).trim()}}).filter(d=>d.t);
+   return{word:e.word,reading:'',pos:defs[0].pos,en:defs.slice(0,3).map(d=>d.t),vi:'',jlpt:''};
+  }
+ }
+ return null;
+}
+const posText=p=>typeof p==='string'?p:Object.keys(p).map(k=>k+(p[k]&&typeof p[k]==='string'?' '+p[k]:'')).join(' ');
+async function jotoba(q){
+ const r=await fetch('https://jotoba.de/api/search/words',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({query:q,language:'English',no_english:false})});
+ if(!r.ok)throw new Error('HTTP '+r.status);return((await r.json()).words||[])[0];
+}
+async function dictJa(word,ext){
+ let d=null;
+ if(ext&&ext!==word){const d1=await jotoba(ext);if(d1){const w=d1.reading.kanji||d1.reading.kana||'',stem=w.length>1?w.slice(0,-1):w;if(stem&&ext.indexOf(stem)===0)d=d1}}
+ if(!d)d=await jotoba(word);
+ if(!d)return null;
+ return{word:d.reading.kanji||d.reading.kana||word,reading:d.reading.kana||'',pos:((d.senses[0]||{}).pos||[]).map(posText).join(', '),en:d.senses.slice(0,3).map(x=>x.glosses.slice(0,4).join('; ')),vi:'',jlpt:d.jlpt_lvl?'N'+d.jlpt_lvl:''};
+}
+let scriptWarm=0;
+function warmScript(){if(!cfg.trUrl||Date.now()-scriptWarm<4*60e3)return;scriptWarm=Date.now();trBatch(['.'],'vi').catch(()=>{})}
+async function lookup(word,lang,ext,onPartial){
  const key='dict|'+lang+'|'+word.toLowerCase()+'|'+(ext||'');
- const c=await idb.get(key);if(c&&c.r)return c.r;
- if(!cfg.trUrl)throw new Error('Cần cài địa chỉ dịch (Apps Script) để tra từ');
- const r=await fetch(cfg.trUrl,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({mode:'dict',word,ext:ext||'',lang})});
- if(!r.ok)throw new Error('HTTP '+r.status);const j=await r.json();if(j.error)throw new Error(j.error);
- await idb.put({id:key,r:j,at:Date.now()});return j;
+ const c=await idb.get(key);if(c&&c.r&&c.v===2)return c.r;
+ let r=null;
+ try{r=lang==='ja'?await dictJa(word,ext):await dictEn(word)}catch{}
+ if(r&&r.en.length&&onPartial)onPartial(r);
+ if(!cfg.trUrl){if(!r)throw new Error('Cần cài địa chỉ dịch (Apps Script) để tra từ');r.vi=r.vi||'';return r}
+ if(!r)r={word,reading:'',pos:'',en:[],vi:'',jlpt:''};
+ const texts=[r.word];if(r.en.length)texts.push(r.en[0].replace(/;/g,','));
+ const t=await trBatch(texts,'vi');
+ r.vi=(t[0]||'')+((t[1]&&t[1].toLowerCase()!==(t[0]||'').toLowerCase())?' — '+t[1]:'');
+ await idb.put({id:key,r,v:2,at:Date.now()});return r;
 }
 let dictCur=null;
 const vId=(lang,w)=>lang+'|'+w.toLowerCase();
@@ -1046,12 +1087,12 @@ function dictRender(){
  const d=dictCur,r=d.res,card=$('#dict');
  const canon=(r&&r.word)||d.word,saved=vocab.some(v=>v.id===vId(d.lang,canon));
  card.innerHTML=`<div class="dh"><div><b class="dw">${esc(canon)}</b>${r&&r.reading?`<span class="dr">${esc(r.reading)}</span>`:''}${r&&r.jlpt?` <em class="tag" style="font-style:normal">${esc(r.jlpt)}</em>`:''}</div><button class="ib" data-act="dclose" aria-label="Đóng">✕</button></div>`+
-  (r?`<div class="dm">${esc(r.vi||'')}</div><div class="de">${r.pos?`<i>${esc(r.pos)}</i>`:''}${esc((r.en||[]).join(' · '))}</div>`:'<div class="de">Đang tra…</div>')+
-  (r?`<div class="da"><button class="btn" data-act="dsave">${saved?'✓ Đã lưu từ':'★ Lưu từ'}</button><button class="btn alt" data-act="dspeak" aria-label="Phát âm">🔊</button></div>`:'');
+  (r?`<div class="dm">${r._p?'<span style="color:var(--mut);font-weight:400">Đang dịch…</span>':esc(r.vi||'')}</div><div class="de">${r.pos?`<i>${esc(r.pos)}</i>`:''}${esc((r.en||[]).join(' · '))}</div>`:'<div class="de">Đang tra…</div>')+
+  (r&&!r._p?`<div class="da"><button class="btn" data-act="dsave">${saved?'✓ Đã lưu từ':'★ Lưu từ'}</button><button class="btn alt" data-act="dspeak" aria-label="Phát âm">🔊</button></div>`:'');
 }
 async function showDict(word,lang,ctx,ext){
  dictCur={word,lang,ctx,res:null};const card=$('#dict');card.classList.add('on');dictRender();
- try{const r=await lookup(word,lang,ext);if(!dictCur||dictCur.word!==word)return;dictCur.res=r;dictRender();speak(r.word||word,lang)}
+ try{const r=await lookup(word,lang,ext,p=>{if(dictCur&&dictCur.word===word){dictCur.res={...p,_p:1};dictRender();speak(p.word||word,lang)}});if(!dictCur||dictCur.word!==word)return;delete r._p;dictCur.res=r;dictRender()}
  catch(e){if(dictCur&&dictCur.word===word)card.innerHTML=`<div class="dh"><b class="dw">${esc(word)}</b><button class="ib" data-act="dclose">✕</button></div><div class="de">${esc(T('Không tra được: ')+T(e.message))}</div>`}
 }
 function dictTap(e){
@@ -1061,7 +1102,7 @@ function dictTap(e){
  showDict(w.word,w.lang,w.ctx,w.ext);
 }
 function setDictMode(on){
- ui.dict=on;R.classList.toggle('dm-on',on);$('#dictBtn').classList.toggle('on',on);
+ ui.dict=on;if(on)warmScript();R.classList.toggle('dm-on',on);$('#dictBtn').classList.toggle('on',on);
  if(on){R.classList.remove('hide');if(!cfg.trUrl)toast('Cần cài địa chỉ dịch (Apps Script) để tra từ');else toast('Tra từ: BẬT – chạm vào từ để tra')}
  else{$('#dict').classList.remove('on');dictCur=null;try{getSelection().removeAllRanges()}catch{}toast('Tra từ: TẮT')}
 }
