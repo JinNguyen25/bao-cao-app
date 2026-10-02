@@ -175,8 +175,8 @@ const THEMES={
  black:{n:'Đen',bg:'#000000',fg:'#9a9a9a',ac:'#6a9fe8'}
 };
 const FONTS={serif:['Có chân','Georgia,"Noto Serif","Times New Roman",serif'],sans:['Không chân','system-ui,-apple-system,"Segoe UI",Roboto,sans-serif'],mono:['Đơn cách','ui-monospace,Menlo,Consolas,monospace']};
-const APP_VERSION='1.1.0';
-const DEFAULT_CLIENT_ID='';/* điền Client ID vào đây để khỏi phải nhập trên điện thoại */
+const APP_VERSION='1.1.1';
+const DEFAULT_CLIENT_ID='261665890535-fa8n69cifr5kpr9k0qvurku6rss3kccd.apps.googleusercontent.com';/* điền Client ID vào đây để khỏi phải nhập trên điện thoại */
 const DEF={clientId:DEFAULT_CLIENT_ID,signedIn:false,theme:'sepia',custom:{bg:'#222831',fg:'#eeeeee'},font:'serif',size:19,lh:1.7,mg:20,align:'left',awake:false,prefetch:10};
 let cfg=Object.assign({},DEF,LS.get('rp_cfg',{}));
 if(DEFAULT_CLIENT_ID&&cfg.clientId!==DEFAULT_CLIENT_ID){cfg.clientId=DEFAULT_CLIENT_ID;LS.set('rp_cfg',cfg)}
