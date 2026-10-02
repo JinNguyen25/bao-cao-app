@@ -9,6 +9,8 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Báo cáo">
 <link rel="manifest" href="manifest.json">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&family=Lora:wght@400;500;600;700&family=Merriweather:wght@400;700&family=Nunito:wght@400;600;700&family=Noto+Sans:wght@400;500;600;700&family=Noto+Serif:wght@400;600;700&display=swap">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-180.png">
 <style>
@@ -174,11 +176,22 @@ const THEMES={
  dark:{n:'Tối',bg:'#1a1b1e',fg:'#c8c8c8',ac:'#7ab0ff'},
  black:{n:'Đen',bg:'#000000',fg:'#9a9a9a',ac:'#6a9fe8'}
 };
-const FONTS={serif:['Có chân','Georgia,"Noto Serif","Times New Roman",serif'],sans:['Không chân','system-ui,-apple-system,"Segoe UI",Roboto,sans-serif'],mono:['Đơn cách','ui-monospace,Menlo,Consolas,monospace']};
-const APP_VERSION='1.3.0';
+const FONTS={
+ bevn:['Be Vietnam Pro','"Be Vietnam Pro",system-ui,"Segoe UI",Roboto,sans-serif'],
+ nunito:['Nunito','Nunito,system-ui,"Segoe UI",Roboto,sans-serif'],
+ notosans:['Noto Sans','"Noto Sans",system-ui,"Segoe UI",Roboto,sans-serif'],
+ lora:['Lora','Lora,Georgia,"Times New Roman",serif'],
+ merri:['Merriweather','Merriweather,Georgia,"Times New Roman",serif'],
+ notoserif:['Noto Serif','"Noto Serif",Georgia,"Times New Roman",serif'],
+ serif:['Georgia','Georgia,"Times New Roman",serif'],
+ sans:['Hệ thống','system-ui,-apple-system,"Segoe UI",Roboto,sans-serif'],
+ mono:['Đơn cách','ui-monospace,Menlo,Consolas,monospace']};
+const APP_VERSION='1.4.0';
 const DEFAULT_CLIENT_ID='261665890535-fa8n69cifr5kpr9k0qvurku6rss3kccd.apps.googleusercontent.com';/* điền Client ID vào đây để khỏi phải nhập trên điện thoại */
-const DEF={clientId:DEFAULT_CLIENT_ID,signedIn:false,theme:'sepia',custom:{bg:'#222831',fg:'#eeeeee'},font:'serif',size:19,lh:1.7,mg:20,align:'left',awake:false,prefetch:10};
+const DEF={clientId:DEFAULT_CLIENT_ID,signedIn:false,theme:'sepia',custom:{bg:'#222831',fg:'#eeeeee'},font:'bevn',size:18,lh:1.75,mg:20,align:'left',awake:false,prefetch:10};
 let cfg=Object.assign({},DEF,LS.get('rp_cfg',{}));
+if(!cfg.fontV){cfg.fontV=2;cfg.font='bevn';cfg.size=Math.min(cfg.size,18);LS.set('rp_cfg',cfg)}
+if(!FONTS[cfg.font])cfg.font='bevn';
 if(DEFAULT_CLIENT_ID&&cfg.clientId!==DEFAULT_CLIENT_ID){cfg.clientId=DEFAULT_CLIENT_ID;LS.set('rp_cfg',cfg)}
 let idx=LS.get('rp_idx',{roots:[],files:[],cats:[],at:0});
 if(!idx.roots)idx.roots=idx.rootId?[{id:idx.rootId,name:idx.rootName||'Báo cáo'}]:[];
@@ -207,7 +220,7 @@ function applyAppearance(){
 function appearanceHTML(){
  const sw=Object.entries(THEMES).map(([k,t])=>`<button data-act="theme" data-v="${k}" class="${cfg.theme===k?'on':''}" style="background:${t.bg};color:${t.fg}" aria-label="${t.n}" title="${t.n}">Aa</button>`).join('')+
   `<button data-act="theme" data-v="custom" class="${cfg.theme==='custom'?'on':''}" style="background:linear-gradient(135deg,${cfg.custom.bg} 50%,${cfg.custom.fg} 50%);color:${cfg.custom.fg}" aria-label="Tùy chỉnh" title="Tùy chỉnh">✎</button>`;
- const seg=(key,opts)=>`<div class="seg">${opts.map(([v,l])=>`<button data-act="set" data-k="${key}" data-v="${v}" class="${String(cfg[key])===String(v)?'on':''}">${l}</button>`).join('')}</div>`;
+ const seg=(key,opts)=>`<div class="seg">${opts.map(([v,l])=>`<button data-act="set" data-k="${key}" data-v="${v}" class="${String(cfg[key])===String(v)?'on':''}"${key==='font'?` style="font-family:${FONTS[v][1].replace(/"/g,"'")}"`:''}>${l}</button>`).join('')}</div>`;
  return `
  <div class="ctl"><label>Màu nền · chữ</label><div class="sw" id="swatches">${sw}</div>
   <div class="colors" id="customColors" style="display:${cfg.theme==='custom'?'flex':'none'}"><label>Nền <input type="color" data-cc="bg" value="${cfg.custom.bg}"></label><label>Chữ <input type="color" data-cc="fg" value="${cfg.custom.fg}"></label></div></div>
@@ -501,8 +514,8 @@ function vSettings(){
  <div class="sec"><h3>Tải sẵn để đọc offline</h3>
   <div class="ctl" style="margin-top:0"><label><span>Tự tải sẵn số báo cáo mới nhất</span><span id="v-pf">${cfg.prefetch}</span></label><input type="range" min="0" max="60" step="5" value="${cfg.prefetch}" data-pf></div>
   <p><button class="btn alt" data-act="clearcache">Xóa dữ liệu đã tải</button></p></div>
- <div class="sec"><h3>Đăng nhập lâu dài</h3>
-  ${RT.get()&&SEC()?`<p style="color:var(--fg)">✓ Đã bật – app tự gia hạn, không cần đăng nhập lại.</p><p><button class="btn alt" data-act="disablelt">Tắt</button></p>`:`<p>Dán <b>Client secret</b> của Client ID (Google Cloud → Clients → chọn client → Client secrets) để app tự đăng nhập, khỏi phải bấm lại mỗi giờ. Chỉ lưu trên máy này.</p><input type="password" id="sec" placeholder="GOCSPX-…" autocomplete="off"><p><button class="btn" data-act="enablelt">Bật đăng nhập lâu dài</button></p>`}</div>
+ ${RT.get()&&SEC()?'':`<div class="sec"><h3>Đăng nhập lâu dài</h3>
+  <p>Dán <b>Client secret</b> của Client ID (Google Cloud → Clients → chọn client → Client secrets) để app tự đăng nhập, khỏi phải bấm lại mỗi giờ. Chỉ lưu trên máy này.</p><input type="password" id="sec" placeholder="GOCSPX-…" autocomplete="off"><p><button class="btn" data-act="enablelt">Bật đăng nhập lâu dài</button></p></div>`}
  <div class="sec"><h3>Cập nhật ứng dụng</h3><div class="kv"><span>Phiên bản</span><span>${APP_VERSION}</span></div><p><button class="btn alt" data-act="chkupd">Kiểm tra cập nhật</button></p></div>
  ${DEFAULT_CLIENT_ID?'':`<div class="sec"><h3>Google Client ID</h3><input type="text" id="cid" value="${esc(cfg.clientId)}" placeholder="xxxx.apps.googleusercontent.com"><p><button class="btn alt" data-act="savecid">Lưu Client ID</button></p></div>`}`;
 }
