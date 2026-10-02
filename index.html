@@ -175,8 +175,11 @@ const THEMES={
  black:{n:'Đen',bg:'#000000',fg:'#9a9a9a',ac:'#6a9fe8'}
 };
 const FONTS={serif:['Có chân','Georgia,"Noto Serif","Times New Roman",serif'],sans:['Không chân','system-ui,-apple-system,"Segoe UI",Roboto,sans-serif'],mono:['Đơn cách','ui-monospace,Menlo,Consolas,monospace']};
-const DEF={clientId:'',signedIn:false,theme:'sepia',custom:{bg:'#222831',fg:'#eeeeee'},font:'serif',size:19,lh:1.7,mg:20,align:'left',awake:false,prefetch:10};
+const APP_VERSION='1.1.0';
+const DEFAULT_CLIENT_ID='';/* điền Client ID vào đây để khỏi phải nhập trên điện thoại */
+const DEF={clientId:DEFAULT_CLIENT_ID,signedIn:false,theme:'sepia',custom:{bg:'#222831',fg:'#eeeeee'},font:'serif',size:19,lh:1.7,mg:20,align:'left',awake:false,prefetch:10};
 let cfg=Object.assign({},DEF,LS.get('rp_cfg',{}));
+if(DEFAULT_CLIENT_ID&&cfg.clientId!==DEFAULT_CLIENT_ID){cfg.clientId=DEFAULT_CLIENT_ID;LS.set('rp_cfg',cfg)}
 let idx=LS.get('rp_idx',{rootId:'',rootName:'',files:[],cats:[],at:0});
 let readMap=LS.get('rp_read',{}),bm=LS.get('rp_bm',{}),posMap=LS.get('rp_pos',{});
 let tok=LS.get('rp_tok',null);
@@ -239,7 +242,9 @@ async function api(path,params,raw){
   for(const[k,v]of Object.entries(params||{}))u.searchParams.set(k,v);
   const r=await fetch(u,{headers:{Authorization:'Bearer '+t}});
   if(r.status===401){tok=null;LS.set('rp_tok',null);continue}
-  if(!r.ok)throw new Error('Drive '+r.status);
+  if(!r.ok){let m='';try{m=(await r.json()).error.message||''}catch{}
+   if(r.status===403)throw new Error(/not been used|disabled|accessNotConfigured/i.test(m)?'Chưa bật Google Drive API trong project Google Cloud (bước 2 hướng dẫn)':'Bị từ chối (403): '+(m||'tài khoản không có quyền'));
+   throw new Error('Drive '+r.status+(m?': '+m:''))}
   return raw?r.text():r.json();
  }
  throw new Error('auth');
@@ -463,6 +468,7 @@ function vSettings(){
  <div class="sec"><h3>Tải sẵn để đọc offline</h3>
   <div class="ctl" style="margin-top:0"><label><span>Tự tải sẵn số báo cáo mới nhất</span><span id="v-pf">${cfg.prefetch}</span></label><input type="range" min="0" max="60" step="5" value="${cfg.prefetch}" data-pf></div>
   <p><button class="btn alt" data-act="clearcache">Xóa dữ liệu đã tải</button></p></div>
+ <div class="sec"><h3>Cập nhật ứng dụng</h3><div class="kv"><span>Phiên bản</span><span>${APP_VERSION}</span></div><p><button class="btn alt" data-act="chkupd">Kiểm tra cập nhật</button></p></div>
  <div class="sec"><h3>Google Client ID</h3><input type="text" id="cid" value="${esc(cfg.clientId)}" placeholder="xxxx.apps.googleusercontent.com"><p><button class="btn alt" data-act="savecid">Lưu Client ID</button></p></div>`;
 }
 function vSetup(){
@@ -589,7 +595,7 @@ document.addEventListener('click',async e=>{
  switch(a){
   case'back':if(navCount>0)history.back();else location.hash=cur?'#/cat/'+cur.cat:'#/latest';break;
   case'sync':if(!navigator.onLine)toast('Đang offline');else{if(!tokValid()&&cfg.signedIn)try{await getToken()}catch{}await sync()}break;
-  case'signin':try{await requestToken(true);ui.err='';toast('Đã đăng nhập');route();if(idx.rootId)sync();}catch(err){toast('Đăng nhập không thành công: '+err.message)}break;
+  case'signin':try{await requestToken(true);ui.err='';toast('Đã đăng nhập');route();if(idx.rootId)sync();}catch(err){toast(/access_denied/.test(err.message)?'Bị từ chối: hãy thêm email của bạn vào Test users trong Google Cloud':/popup/.test(err.message)?'Cửa sổ đăng nhập bị đóng hoặc bị chặn popup':'Đăng nhập không thành công: '+err.message)}break;
   case'signout':try{if(tok)google.accounts.oauth2.revoke(tok.t)}catch{}tok=null;LS.set('rp_tok',null);cfg.signedIn=false;saveCfg();route();toast('Đã đăng xuất');break;
   case'savecid':{const c=($('#cid').value||'').trim();if(!/\.apps\.googleusercontent\.com$/.test(c))return toast('Client ID không đúng dạng');cfg.clientId=c;saveCfg();route();break}
   case'resetcid':cfg.clientId='';saveCfg();route();break;
@@ -612,6 +618,8 @@ document.addEventListener('click',async e=>{
   case'pkup':pk.stack.pop();pickLoad();break;
   case'pkselect':{const t=pk.stack[pk.stack.length-1];setRoot(t.id,t.name);break}
   case'pklinkgo':{const s=($('#pklink').value||'').trim();const m=s.match(/folders\/([\w-]+)/)||s.match(/[?&]id=([\w-]+)/)||s.match(/^([\w-]{20,})$/);if(!m)return toast('Link không hợp lệ');try{const r=await api('files/'+m[1],{fields:'id,name,mimeType',supportsAllDrives:true});if(r.mimeType!==FOLDER)return toast('Đây không phải thư mục');setRoot(r.id,r.name)}catch(err){toast('Không mở được thư mục: '+err.message)}break}
+  case'chkupd':await checkUpdate(true);break;
+  case'doupd':await applyUpdate();break;
   case'clearcache':await idb.clear();toast('Đã xóa dữ liệu đã tải');break;
  }
 });
@@ -622,13 +630,33 @@ document.addEventListener('input',e=>{
 window.addEventListener('hashchange',()=>{navCount++;route()});
 window.addEventListener('online',()=>{route();sync()});
 window.addEventListener('offline',route);
-document.addEventListener('visibilitychange',()=>{if(!document.hidden){if(cur&&cfg.awake&&navigator.wakeLock&&!wake)navigator.wakeLock.request('screen').then(w=>wake=w).catch(()=>{});if(idx.rootId&&Date.now()-idx.at>10*60e3&&navigator.onLine)sync()}});
+document.addEventListener('visibilitychange',()=>{if(!document.hidden){checkUpdate();if(cur&&cfg.awake&&navigator.wakeLock&&!wake)navigator.wakeLock.request('screen').then(w=>wake=w).catch(()=>{});if(idx.rootId&&Date.now()-idx.at>10*60e3&&navigator.onLine)sync()}});
+
+/* ---------- cập nhật ứng dụng ---------- */
+let newVer='';
+async function checkUpdate(manual){
+ try{
+  const r=await fetch('version.json?t='+Date.now(),{cache:'no-store'});const j=await r.json();
+  if(j.v&&j.v!==APP_VERSION){newVer=j.v;showUpdBanner()}else if(manual)toast('Đang dùng bản mới nhất ('+APP_VERSION+')');
+ }catch{if(manual)toast('Không kiểm tra được (offline?)')}
+}
+function showUpdBanner(){
+ if($('#updb'))return;const b=document.createElement('div');b.id='updb';
+ b.style.cssText='position:fixed;left:12px;right:12px;top:calc(10px + env(safe-area-inset-top,0px));z-index:60;max-width:736px;margin:0 auto';
+ b.innerHTML=`<div class="banner" style="box-shadow:0 4px 18px #0004"><span>Có bản mới ${esc(newVer)}</span><button data-act="doupd">Cập nhật ngay</button></div>`;
+ document.body.appendChild(b);
+}
+async function applyUpdate(){
+ try{const regs=await navigator.serviceWorker.getRegistrations();await Promise.all(regs.map(r=>r.unregister()));const ks=await caches.keys();await Promise.all(ks.map(k=>caches.delete(k)))}catch{}
+ location.reload();
+}
 
 /* ---------- khởi động ---------- */
 applyAppearance();
 if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
 route();
 if(idx.rootId&&cfg.signedIn&&(Date.now()-idx.at>5*60e3))sync();
+checkUpdate();
 </script>
 </body>
 </html>
