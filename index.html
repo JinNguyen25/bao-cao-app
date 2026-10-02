@@ -111,6 +111,20 @@ input[type=range]{width:100%;accent-color:var(--ac)}
 .fl{display:flex;gap:10px;align-items:center;padding:12px 10px;border-radius:10px;text-align:left;width:100%}
 .fl:active{background:var(--card)}
 .fl svg{color:var(--ac)}
+#dict{position:absolute;left:0;right:0;bottom:calc(52px + var(--safe-b));background:var(--bg);border-top:1px solid var(--line);box-shadow:0 -6px 20px #0003;border-radius:16px 16px 0 0;padding:12px 16px 14px;z-index:4;display:none;max-height:46%;overflow-y:auto;font-family:var(--ui)}
+#dict.on{display:block}
+.dh{display:flex;align-items:flex-start;gap:8px;justify-content:space-between}
+.dw{font-size:26px;font-weight:700;line-height:1.2}.dr{font-size:16px;color:var(--ac);margin-left:8px}
+.dm{font-size:17px;font-weight:600;margin:8px 0 4px}.de{font-size:14px;color:var(--mut);line-height:1.5}.de i{color:var(--ac);font-style:normal;font-size:12px;margin-right:4px}
+.da{display:flex;gap:8px;margin-top:12px}
+.dm-on #article{padding-bottom:300px}
+#dictBtn.on{color:var(--ac);background:color-mix(in srgb,var(--ac) 16%,var(--bg))}
+.vc .vh{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}.vw{font-size:22px}.vr{color:var(--ac);font-size:15px}
+.vm{font-size:16px;font-weight:600;margin-top:6px}.ve{font-size:13.5px;color:var(--mut);margin-top:2px}.vx{font-size:13.5px;margin-top:8px;padding-left:10px;border-left:3px solid var(--line);color:var(--mut);font-style:italic}
+.va{display:flex;gap:14px;align-items:center;margin-top:10px;font-size:14px}.va a{color:var(--ac)}
+.card{background:var(--card);border-radius:18px;padding:30px 20px;text-align:center;min-height:240px;display:flex;flex-direction:column;justify-content:center;gap:10px}
+.card .big{font-size:38px;font-weight:700;line-height:1.25}
+.rvb{display:flex;gap:10px;margin-top:14px}.rvb .btn{flex:1}
 </style>
 </head>
 <body>
@@ -127,9 +141,11 @@ input[type=range]{width:100%;accent-color:var(--ac)}
     <button class="ib" data-act="rset" aria-label="Giao diện đọc"><svg viewBox="0 0 24 24"><path d="M4 20l5-14 5 14M6 15h6M16 20l3-8 3 8M17 18h4" transform="translate(-1 0)"/></svg></button>
   </div>
   <div id="rscroll"><div id="article"></div></div>
+  <div id="dict"></div>
   <div class="rbar bot">
     <button class="ib" data-act="older" aria-label="Báo cáo cũ hơn"><svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></button>
     <button class="ib" data-act="tts" id="ttsBtn" aria-label="Đọc to"><svg viewBox="0 0 24 24"><path d="M11 5L6 9H3v6h3l5 4zM15.5 8.5a5 5 0 010 7M18.5 5.5a9 9 0 010 13"/></svg></button>
+    <button class="ib" id="dictBtn" data-act="dictmode" aria-label="Chế độ tra từ"><svg viewBox="0 0 24 24"><path d="M4 19V5a2 2 0 012-2h13v16H6a2 2 0 00-2 2zM4 19a2 2 0 002 2h13M9 8h6M9 12h4"/></svg></button>
     <button class="ib" data-act="trtoggle" aria-label="Xem bản gốc / bản dịch"><svg viewBox="0 0 24 24"><path d="M4 5h9M8.5 3v2M6 5c.5 4 3 7 6 8M12 5c-.5 3-3 6-8 8M13 20l4-9 4 9M14.5 17h5"/></svg></button>
     <button class="ib" data-act="unread" aria-label="Đánh dấu chưa đọc"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4" fill="currentColor"/><circle cx="12" cy="12" r="9"/></svg></button>
     <button class="ib" data-act="drive" aria-label="Mở trong Drive"><svg viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 01-1 1H5a1 1 0 01-1-1V7a1 1 0 011-1h5"/></svg></button>
@@ -160,6 +176,7 @@ const I={
  saved:'<svg viewBox="0 0 24 24"><path d="M6 3h12v18l-6-4-6 4z"/></svg>',
  set:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.8.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8V9a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z"/></svg>',
  search:'<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>',
+ vocab:'<svg viewBox="0 0 24 24"><rect x="3" y="6" width="14" height="14" rx="2"/><path d="M7 3h12a2 2 0 012 2v12M7 11h6M7 15h4"/></svg>',
  refresh:'<svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 11-3-6.7M21 4v5h-5"/></svg>',
  back:'<svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>',
  doc:'<svg viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8zM14 3v5h5M9 13h6M9 17h6"/></svg>',
@@ -187,7 +204,7 @@ const FONTS={
  serif:['Georgia','Georgia,"Times New Roman",serif'],
  sans:['Hệ thống','system-ui,-apple-system,"Segoe UI",Roboto,sans-serif'],
  mono:['Đơn cách','ui-monospace,Menlo,Consolas,monospace']};
-const APP_VERSION='1.5.1';
+const APP_VERSION='1.6.0';
 const DEFAULT_CLIENT_ID='261665890535-fa8n69cifr5kpr9k0qvurku6rss3kccd.apps.googleusercontent.com';/* điền Client ID vào đây để khỏi phải nhập trên điện thoại */
 const DEF={clientId:DEFAULT_CLIENT_ID,signedIn:false,theme:'sepia',custom:{bg:'#222831',fg:'#eeeeee'},font:'bevn',size:18,lh:1.75,mg:20,align:'left',awake:false,prefetch:10,lang:'vi',autoTr:true,trUrl:''};
 let cfg=Object.assign({},DEF,LS.get('rp_cfg',{}));
@@ -434,7 +451,7 @@ const catName=id=>dispN((idx.cats.find(c=>c.id===id)||{name:'Khác'}).name);
 function markRead(f,v){if(v)readMap[f.id]=f.mt;else delete readMap[f.id];LS.set('rp_read',readMap)}
 
 /* ---------- vẽ màn hình ---------- */
-const TABS=[['latest','Mới nhất',I.latest],['cats','Mục',I.cats],['saved','Đã lưu',I.saved],['settings','Cài đặt',I.set]];
+const TABS=[['latest','Mới nhất',I.latest],['cats','Mục',I.cats],['saved','Đã lưu',I.saved],['vocab','Từ vựng',I.vocab],['settings','Cài đặt',I.set]];
 function renderNav(tab){$('#nav').innerHTML=TABS.map(([k,l,ic])=>`<a href="#/${k}" class="${tab===k?'on':''}">${ic}${l}</a>`).join('')}
 let hdrState={title:'',sub:'',back:false,tools:true};
 function renderHeader(){
@@ -533,7 +550,7 @@ function vSetup(){
  if(!cfg.signedIn&&!tokValid())return `<div class="setup"><h2>Đăng nhập Google</h2><p style="color:var(--mut)">App chỉ xin quyền chỉ đọc Drive (không sửa/xóa gì).</p><input type="password" id="sec" placeholder="Client secret (khuyên dùng, để khỏi đăng nhập lại)" autocomplete="off" value="${esc(SEC())}" style="margin-bottom:10px"><button class="btn full" data-act="signin">Đăng nhập bằng Google</button>${ui.err&&ui.err!=='auth'?`<p style="color:#d33">${esc(ui.err)}</p>`:''}${DEFAULT_CLIENT_ID?'':'<p><button class="btn alt full" data-act="resetcid">Đổi Client ID</button></p>'}</div>`;
  return `<div class="setup"><h2>Chọn thư mục báo cáo</h2><p style="color:var(--mut)">Chọn thư mục chứa báo cáo. Mỗi thư mục con bên trong sẽ thành một mục riêng. Sau này có thể thêm nhiều thư mục khác trong Cài đặt.</p><button class="btn full" data-act="pick">Chọn thư mục từ Drive</button></div>`;
 }
-const PAGES={latest:vLatest,cats:vCats,saved:vSaved,settings:vSettings};
+const PAGES={latest:vLatest,cats:vCats,saved:vSaved,vocab:vVocab,settings:vSettings};
 let scrollMem={},curKey='';
 
 function route(){
@@ -546,8 +563,8 @@ function showMain(p,arg){
  const key=p+(arg||'');const v=$('#view');
  if(curKey)scrollMem[curKey]=v.scrollTop;
  let html;
- if(p==='cat')html=vCat(arg);else if(p==='search')html=vSearch();else html=(PAGES[p]||vLatest)();
- v.innerHTML=html;renderNav(p==='cat'?'cats':p==='search'?'':p);renderHeader();
+ if(p==='cat')html=vCat(arg);else if(p==='search')html=vSearch();else if(p==='review')html=vReview();else html=(PAGES[p]||vLatest)();
+ v.innerHTML=html;renderNav(p==='cat'?'cats':p==='search'?'':p==='review'?'vocab':p);renderHeader();
  if(p==='settings')bindAppearance(v);
  if(p==='search')doSearch();
  if(key!==curKey||true)v.scrollTop=scrollMem[key]||0;
@@ -561,7 +578,7 @@ async function openReader(id){
  const f=byId(id);
  if(!f){location.hash='#/latest';return}
  if(cur&&cur.id===id&&R.classList.contains('on'))return;
- stopTTS();cur=f;R.classList.add('on');R.classList.remove('hide');document.body.style.overflow='hidden';
+ stopTTS();cur=f;R.classList.add('on');R.classList.remove('hide');$('#dict').classList.remove('on');dictCur=null;document.body.style.overflow='hidden';
  $('#rtitle').textContent=disp(f.name);setBm();ui.showOrig=false;
  ART.innerHTML='<div class="center">Đang tải báo cáo…</div>';RS.scrollTop=0;$('#prog').style.width='0';
  if(cfg.awake&&navigator.wakeLock){try{wake=await navigator.wakeLock.request('screen')}catch{}}
@@ -582,6 +599,7 @@ async function openReader(id){
 }
 function closeReader(){
  if(!R.classList.contains('on'))return;
+ if(ui.dict)setDictMode(false);
  R.classList.remove('on');document.body.style.overflow='';stopTTS();
  if(wake){wake.release().catch(()=>{});wake=null}
  cur=null;
@@ -592,8 +610,8 @@ function updateProg(){
  if(cur){clearTimeout(saveT);saveT=setTimeout(()=>{if(!cur)return;posMap[cur.id]=r>.98?0:+r.toFixed(4);LS.set('rp_pos',posMap)},400)}
 }
 RS.addEventListener('scroll',updateProg,{passive:true});
-let lastY=0;RS.addEventListener('scroll',()=>{const y=RS.scrollTop;if(Math.abs(y-lastY)>40){R.classList.toggle('hide',y>lastY&&y>80);lastY=y}},{passive:true});
-RS.addEventListener('click',e=>{if(e.target.closest('a,button'))return;R.classList.toggle('hide')});
+let lastY=0;RS.addEventListener('scroll',()=>{if(ui.dict)return;const y=RS.scrollTop;if(Math.abs(y-lastY)>40){R.classList.toggle('hide',y>lastY&&y>80);lastY=y}},{passive:true});
+RS.addEventListener('click',e=>{if(e.target.closest('a,button'))return;if(ui.dict&&e.target.closest('#rbody,.meta')){dictTap(e);return}R.classList.toggle('hide')});
 function setBm(){const b=$('#bmBtn');b.style.color=cur&&bm[cur.id]?'var(--ac)':'';b.querySelector('path').setAttribute('fill',cur&&bm[cur.id]?'currentColor':'none')}
 function neighbour(dir){
  if(!cur)return;const list=idx.files.filter(f=>f.cat===cur.cat);const i=list.findIndex(f=>f.id===cur.id);
@@ -683,6 +701,19 @@ document.addEventListener('click',async e=>{
     else toast('Google chưa cấp quyền gia hạn. Vào myaccount.google.com/permissions gỡ quyền của app rồi thử lại');
    }catch(err){toast('Không bật được: '+(err.message==='invalid_client'?'Client secret sai':err.message))}break}
   case'disablelt':RT.set(null);LS.set('rp_sec','');route();toast('Đã tắt');break;
+  case'dictmode':setDictMode(!ui.dict);break;
+  case'dclose':$('#dict').classList.remove('on');dictCur=null;try{getSelection().removeAllRanges()}catch{}break;
+  case'dsave':saveWord();break;
+  case'dspeak':if(dictCur)speak((dictCur.res&&dictCur.res.word)||dictCur.word,dictCur.lang);break;
+  case'vfilter':ui.vf=v;route();break;
+  case'vdel':vocab=vocab.filter(x=>x.id!==el.dataset.id);saveVocab();route();toast('Đã xóa từ');break;
+  case'vspeak':{const x=vocab.find(y=>y.id===el.dataset.id);if(x)speak(x.word,x.lang);break}
+  case'vexport':exportVocab();break;
+  case'rvstart':ui.rv=null;location.hash='#/review';break;
+  case'rvshow':ui.rv.show=true;route();break;
+  case'rvspeak':{const x=ui.rv&&vocab.find(y=>y.id===ui.rv.q[0]);if(x)speak(x.word,x.lang);break}
+  case'rvyes':{const rv=ui.rv,x=vocab.find(y=>y.id===rv.q[0]);if(x){x.box=Math.min(x.box+1,DAYS.length-1);x.due=Date.now()+DAYS[x.box]*864e5;saveVocab()}rv.q.shift();rv.show=false;route();break}
+  case'rvno':{const rv=ui.rv,x=vocab.find(y=>y.id===rv.q[0]);if(x){x.box=0;x.due=Date.now()+6e5;saveVocab()}rv.q.push(rv.q.shift());rv.show=false;route();break}
   case'savetr':{cfg.trUrl=($('#tru').value||'').trim();saveCfg();toast('Đã lưu địa chỉ dịch');ensureNames();break}
   case'testtr':{cfg.trUrl=($('#tru').value||'').trim();if(!cfg.trUrl)return toast('Chưa nhập địa chỉ dịch');saveCfg();try{const o=await trBatch(['Xin chào, đây là bản thử.'],cfg.lang==='vi'?'en':cfg.lang);toast(o[0])}catch(err){toast('Dịch lỗi: '+err.message)}break}
   case'trtoggle':{if(!cur)break;if(!cfg.trUrl)return toast('Chưa cài dịch tự động (xem Cài đặt)');ui.showOrig=!ui.showOrig;const f=cur,c=await idb.get(f.id);
@@ -777,6 +808,14 @@ const D={
 'Ngôn ngữ':['Language','言語'],'Tự dịch báo cáo sang ngôn ngữ này':['Auto-translate reports to this language','レポートをこの言語に自動翻訳'],
 'Dịch báo cáo tự động':['Automatic translation','自動翻訳'],
 'Dán địa chỉ Apps Script dịch (xem HUONG-DAN.md). Cần để tự dịch báo cáo.':['Paste your translation Apps Script URL (see HUONG-DAN.md). Required for auto-translation.','翻訳用Apps ScriptのURLを貼り付けてください（HUONG-DAN.md参照）。自動翻訳に必要です。'],
+'Từ vựng':['Vocabulary','単語帳'],'Chế độ tra từ':['Dictionary mode','辞書モード'],'Ôn tập':['Review','復習'],'Xuất CSV':['Export CSV','CSV出力'],
+'Chưa có từ nào. Khi đọc bản tiếng Anh/Nhật, bật chế độ tra từ rồi chạm vào từ cần học.':['No words yet. While reading English/Japanese, turn on dictionary mode and tap a word.','単語がありません。英語・日本語を読むときに辞書モードをオンにして単語をタップしてください。'],
+'★ Lưu từ':['★ Save word','★ 単語を保存'],'✓ Đã lưu từ':['✓ Saved','✓ 保存済み'],'Hiện nghĩa':['Show answer','答えを見る'],'Chưa nhớ':['Again','まだ'],'Nhớ rồi':['Got it','覚えた'],
+'Đã ôn xong 🎉':['All done 🎉','復習完了 🎉'],'Mở báo cáo':['Open report','レポートを開く'],'Đang tra…':['Looking up…','検索中…'],
+'Tra từ: BẬT – chạm vào từ để tra':['Dictionary ON – tap a word','辞書：オン – 単語をタップ'],'Tra từ: TẮT':['Dictionary OFF','辞書：オフ'],
+'Chỉ tra được từ tiếng Anh/Nhật':['Only English/Japanese words can be looked up','英語・日本語の単語のみ検索できます'],
+'Cần cài địa chỉ dịch (Apps Script) để tra từ':['Set up the translation Apps Script URL to look up words','単語検索には翻訳Apps ScriptのURL設定が必要です'],
+'Đã xóa từ':['Word removed','単語を削除しました'],'Không có từ nào cần ôn':['Nothing to review','復習する単語はありません'],'Đã lưu từ':['Word saved','単語を保存しました'],
 'Lưu':['Save','保存'],'Thử dịch':['Test','テスト'],
 'Đang dịch…':['Translating…','翻訳中…'],'Bản dịch tự động':['Auto-translated','自動翻訳'],'Bản gốc':['Original','原文'],'Không dịch được':['Translation failed','翻訳できませんでした'],
 'Xem bản gốc / bản dịch':['Toggle original / translation','原文／翻訳を切り替え'],'Chưa cài dịch tự động (xem Cài đặt)':['Auto-translation is not set up (see Settings)','自動翻訳が未設定です（設定を参照）'],
@@ -788,6 +827,8 @@ const WDS=['Chủ nhật','Thứ hai','Thứ ba','Thứ tư','Thứ năm','Thứ
 function T(s,L){
  L=L||cfg.lang;if(L==='vi'||!s)return s;const i=LI[L];let m;
  if(D[s])return D[s][i];
+ if(m=s.match(/^(\d+) từ · (\d+) cần ôn$/))return i?`${m[1]}語 · 復習${m[2]}件`:`${m[1]} words · ${m[2]} due`;
+ if(m=s.match(/^Ôn tập \((\d+)\)$/))return i?`復習 (${m[1]})`:`Review (${m[1]})`;
  if(m=s.match(/^(\d+) báo cáo(?: · mới nhất (.+))?$/))return i?`${m[1]}件のレポート${m[2]?' · 最新 '+m[2]:''}`:`${m[1]} report${m[1]==1?'':'s'}${m[2]?' · latest '+m[2]:''}`;
  if(m=s.match(/^(\d+) thư mục nguồn$/))return i?`${m[1]}個の取得元フォルダ`:`${m[1]} source folders`;
  if(m=s.match(/^Chưa đọc \((\d+)\)$/))return i?`未読 (${m[1]})`:`Unread (${m[1]})`;
@@ -899,6 +940,110 @@ async function ensureNames(){
 function langChanged(){
  document.documentElement.lang=cfg.lang;trTree(document.body);ensureNames();
  if(cur){const f=cur;ui.showOrig=false;cur=null;R.classList.remove('on');openReader(f.id)}
+}
+
+
+/* ---------- tra từ điển & từ vựng ---------- */
+let vocab=LS.get('rp_vocab',[]);const saveVocab=()=>LS.set('rp_vocab',vocab);
+const DAYS=[0,1,3,7,14,30];
+const dueList=()=>vocab.filter(v=>v.due<=Date.now());
+const CJK=/[぀-ヿ㐀-鿿ｦ-ﾟ]/;
+let seg=null;try{seg=new Intl.Segmenter('ja',{granularity:'word'})}catch{}
+function wordAt(x,y){
+ let node,off;
+ if(document.caretPositionFromPoint){const p=document.caretPositionFromPoint(x,y);if(!p)return null;node=p.offsetNode;off=p.offset}
+ else if(document.caretRangeFromPoint){const q=document.caretRangeFromPoint(x,y);if(!q)return null;node=q.startContainer;off=q.startOffset}
+ else return null;
+ if(!node||node.nodeType!==3)return null;
+ const t=node.nodeValue;if(!t)return null;
+ if(off>=t.length)off=t.length-1;
+ let a=-1,b=-1,lang='';
+ const ch=t[off]||'';
+ if(CJK.test(ch)){
+  lang='ja';
+  if(seg){for(const sg of seg.segment(t)){if(off>=sg.index&&off<sg.index+sg.segment.length){if(sg.isWordLike!==false){a=sg.index;b=sg.index+sg.segment.length}break}}}
+  else{a=off;b=off+1;while(a>0&&CJK.test(t[a-1])&&off-a<3)a--;while(b<t.length&&CJK.test(t[b])&&b-off<3)b++}
+ }else{
+  const re=/[A-Za-z]+(?:['’\-][A-Za-z]+)*/g;let m;
+  while((m=re.exec(t))){if(off>=m.index&&off<=m.index+m[0].length-1){a=m.index;b=m.index+m[0].length;lang='en';break}}
+ }
+ if(a<0||b<=a)return null;
+ const word=t.slice(a,b).trim();if(!word)return null;
+ let ctx=t;const parts=t.split(/(?<=[。！？!?.\n])/);let pos=0;for(const pt of parts){if(off>=pos&&off<pos+pt.length){ctx=pt;break}pos+=pt.length}
+ let ext='';if(lang==='ja'){let e=b;while(e<t.length&&e-b<6&&/[ぁ-ゟ]/.test(t[e]))e++;ext=t.slice(a,e)}
+ const range=document.createRange();range.setStart(node,a);range.setEnd(node,b);
+ return{word,ext,lang,ctx:ctx.trim().slice(0,220),range};
+}
+async function lookup(word,lang,ext){
+ const key='dict|'+lang+'|'+word.toLowerCase()+'|'+(ext||'');
+ const c=await idb.get(key);if(c&&c.r)return c.r;
+ if(!cfg.trUrl)throw new Error('Cần cài địa chỉ dịch (Apps Script) để tra từ');
+ const r=await fetch(cfg.trUrl,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({mode:'dict',word,ext:ext||'',lang})});
+ if(!r.ok)throw new Error('HTTP '+r.status);const j=await r.json();if(j.error)throw new Error(j.error);
+ await idb.put({id:key,r:j,at:Date.now()});return j;
+}
+let dictCur=null;
+const vId=(lang,w)=>lang+'|'+w.toLowerCase();
+function speak(text,lang){try{speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(text);u.lang=lang==='ja'?'ja-JP':'en-US';speechSynthesis.speak(u)}catch{}}
+function dictRender(){
+ const d=dictCur,r=d.res,card=$('#dict');
+ const canon=(r&&r.word)||d.word,saved=vocab.some(v=>v.id===vId(d.lang,canon));
+ card.innerHTML=`<div class="dh"><div><b class="dw">${esc(canon)}</b>${r&&r.reading?`<span class="dr">${esc(r.reading)}</span>`:''}${r&&r.jlpt?` <em class="tag" style="font-style:normal">${esc(r.jlpt)}</em>`:''}</div><button class="ib" data-act="dclose" aria-label="Đóng">✕</button></div>`+
+  (r?`<div class="dm">${esc(r.vi||'')}</div><div class="de">${r.pos?`<i>${esc(r.pos)}</i>`:''}${esc((r.en||[]).join(' · '))}</div>`:'<div class="de">Đang tra…</div>')+
+  (r?`<div class="da"><button class="btn" data-act="dsave">${saved?'✓ Đã lưu từ':'★ Lưu từ'}</button><button class="btn alt" data-act="dspeak" aria-label="Phát âm">🔊</button></div>`:'');
+}
+async function showDict(word,lang,ctx,ext){
+ dictCur={word,lang,ctx,res:null};const card=$('#dict');card.classList.add('on');dictRender();
+ try{const r=await lookup(word,lang,ext);if(!dictCur||dictCur.word!==word)return;dictCur.res=r;dictRender();speak(r.word||word,lang)}
+ catch(e){if(dictCur&&dictCur.word===word)card.innerHTML=`<div class="dh"><b class="dw">${esc(word)}</b><button class="ib" data-act="dclose">✕</button></div><div class="de">${esc(T('Không tra được: ')+T(e.message))}</div>`}
+}
+function dictTap(e){
+ const w=wordAt(e.clientX,e.clientY);if(!w)return;
+ if(w.lang!=='ja'&&w.lang!=='en'){toast('Chỉ tra được từ tiếng Anh/Nhật');return}
+ const sel=getSelection();sel.removeAllRanges();sel.addRange(w.range);
+ showDict(w.word,w.lang,w.ctx,w.ext);
+}
+function setDictMode(on){
+ ui.dict=on;R.classList.toggle('dm-on',on);$('#dictBtn').classList.toggle('on',on);
+ if(on){R.classList.remove('hide');if(!cfg.trUrl)toast('Cần cài địa chỉ dịch (Apps Script) để tra từ');else toast('Tra từ: BẬT – chạm vào từ để tra')}
+ else{$('#dict').classList.remove('on');dictCur=null;try{getSelection().removeAllRanges()}catch{}toast('Tra từ: TẮT')}
+}
+function saveWord(){
+ const d=dictCur;if(!d||!d.res)return;const r=d.res,canon=r.word||d.word,id=vId(d.lang,canon);
+ const i=vocab.findIndex(v=>v.id===id);
+ if(i>=0){vocab.splice(i,1);saveVocab();dictRender();toast('Đã xóa từ');return}
+ vocab.unshift({id,word:canon,lang:d.lang,reading:r.reading||'',vi:r.vi||'',en:(r.en||[]).join(' · '),pos:r.pos||'',ctx:d.ctx||'',src:cur?cur.id:'',at:Date.now(),box:0,due:Date.now()});
+ saveVocab();dictRender();toast('Đã lưu từ');
+}
+function vVocab(){
+ hdrState={title:'Từ vựng',sub:`${vocab.length} từ · ${dueList().length} cần ôn`,tools:false};
+ const fl=ui.vf||'all',list=vocab.filter(v=>fl==='all'||v.lang===fl);
+ const ch=(v,l)=>`<button class="chip ${fl===v?'on':''}" data-act="vfilter" data-v="${v}">${l}</button>`;
+ const due=dueList().length;
+ const top=`<div class="chips">${ch('all','Tất cả')}${ch('ja','日本語')}${ch('en','English')}</div>
+  <p style="margin:0 0 12px"><button class="btn" data-act="rvstart" ${due?'':'disabled style="opacity:.5"'}>Ôn tập (${due})</button><button class="btn alt" data-act="vexport">Xuất CSV</button></p>`;
+ if(!list.length)return top+emptyHTML('Chưa có từ nào. Khi đọc bản tiếng Anh/Nhật, bật chế độ tra từ rồi chạm vào từ cần học.');
+ return top+list.map(v=>`<div class="sec vc"><div class="vh"><b class="vw">${esc(v.word)}</b>${v.reading?`<span class="vr">${esc(v.reading)}</span>`:''}<em class="tag" style="font-style:normal">${v.lang==='ja'?'日本語':'English'}</em></div>
+  <div class="vm">${esc(v.vi)}</div>${v.en?`<div class="ve">${esc(v.en)}</div>`:''}${v.ctx?`<div class="vx">“${esc(v.ctx)}”</div>`:''}
+  <div class="va">${v.src&&byId(v.src)?`<a href="#/read/${v.src}">Mở báo cáo</a>`:''}<button data-act="vspeak" data-id="${esc(v.id)}" aria-label="Phát âm">🔊</button><button data-act="vdel" data-id="${esc(v.id)}" style="color:#d33">Xóa</button></div></div>`).join('');
+}
+function vReview(){
+ hdrState={title:'Ôn tập',back:true,tools:false};
+ if(!ui.rv)ui.rv={q:dueList().map(v=>v.id).sort(()=>Math.random()-.5),show:false,total:0},ui.rv.total=ui.rv.q.length;
+ const rv=ui.rv,v=vocab.find(x=>x.id===rv.q[0]);
+ if(!v)return `<div class="empty">${I.check}<p>${rv.total?'Đã ôn xong 🎉':'Không có từ nào cần ôn'}</p></div>`;
+ const done=rv.total-rv.q.length;
+ return `<p style="text-align:center;color:var(--mut);font-size:13px;margin:0 0 10px">${done} / ${rv.total}</p>
+ <div class="card"><div class="big">${esc(v.word)}</div>${v.ctx&&!rv.show?`<div class="vx" style="text-align:left">“${esc(v.ctx)}”</div>`:''}
+ ${rv.show?`${v.reading?`<div class="vr" style="font-size:20px">${esc(v.reading)}</div>`:''}<div class="vm" style="font-size:20px">${esc(v.vi)}</div>${v.en?`<div class="ve">${esc(v.en)}</div>`:''}${v.ctx?`<div class="vx" style="text-align:left">“${esc(v.ctx)}”</div>`:''}`:''}</div>
+ ${rv.show?`<div class="rvb"><button class="btn alt" data-act="rvno">Chưa nhớ</button><button class="btn" data-act="rvyes">Nhớ rồi</button></div>`:`<div class="rvb"><button class="btn full" data-act="rvshow">Hiện nghĩa</button></div>`}
+ <p style="text-align:center;margin-top:12px"><button class="ib" data-act="rvspeak" style="margin:auto" aria-label="Phát âm">🔊</button></p>`;
+}
+function exportVocab(){
+ const q=x=>'"'+String(x||'').replace(/"/g,'""')+'"';
+ const rows=[['Từ','Cách đọc','Nghĩa','Nghĩa (EN)','Ví dụ','Ngôn ngữ'],...vocab.map(v=>[v.word,v.reading,v.vi,v.en,v.ctx,v.lang])];
+ const blob=new Blob(['﻿'+rows.map(r=>r.map(q).join(',')).join('\n')],{type:'text/csv;charset=utf-8'});
+ const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='tu-vung.csv';document.body.appendChild(a);a.click();a.remove();
 }
 
 /* ---------- cập nhật ứng dụng ---------- */
