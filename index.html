@@ -204,7 +204,7 @@ const FONTS={
  serif:['Georgia','Georgia,"Times New Roman",serif'],
  sans:['Hệ thống','system-ui,-apple-system,"Segoe UI",Roboto,sans-serif'],
  mono:['Đơn cách','ui-monospace,Menlo,Consolas,monospace']};
-const APP_VERSION='1.8.1';
+const APP_VERSION='1.9.0';
 const DEFAULT_CLIENT_ID='261665890535-fa8n69cifr5kpr9k0qvurku6rss3kccd.apps.googleusercontent.com';/* điền Client ID vào đây để khỏi phải nhập trên điện thoại */
 const DEF={clientId:DEFAULT_CLIENT_ID,signedIn:false,theme:'sepia',custom:{bg:'#222831',fg:'#eeeeee'},font:'bevn',size:18,lh:1.75,mg:20,align:'left',awake:false,prefetch:10,lang:'vi',autoTr:true,trUrl:'',readLang:'ui'};
 let cfg=Object.assign({},DEF,LS.get('rp_cfg',{}));
@@ -353,6 +353,7 @@ async function sync(){
 async function prefetch(){
  const n=cfg.prefetch;if(!n)return;
  for(const f of idx.files.slice(0,n)){try{const c=await idb.get(f.id);if(!c||c.mt!==f.mt||c.v!==2)await loadContent(f,true)}catch{}}
+ idx.files.slice(0,3).forEach(prewarm);
 }
 
 /* ---------- đọc & làm sạch nội dung ---------- */
@@ -594,7 +595,7 @@ async function openReader(id){
   markRead(f,true);
   RS.scrollTop=(posMap[f.id]||0)*(RS.scrollHeight-RS.clientHeight);
   updateProg();
-  if(c.html!==null)applyTranslation(f);
+  if(c.html!==null){await applyTranslation(f);if(cur===f)prewarm(f)}
  }catch(e){
   if(cur!==f)return;
   ART.innerHTML=`<div class="center">${e.message==='auth'?'Cần đăng nhập lại Google để tải báo cáo này.<br><br><button class="btn" data-act="signin">Đăng nhập</button>':'Không tải được: '+esc(e.message)+'<br><br><button class="btn alt" data-act="retry">Thử lại</button>'}</div>`;
@@ -925,31 +926,56 @@ async function translateHtml(html,tl){
  return box.innerHTML;
 }
 const targetLang=()=>{const r=cfg.readLang||'ui';if(r==='orig')return null;if(r==='ui')return cfg.autoTr?cfg.lang:null;return r};
-async function setReaderLang(){
- if(!cur)return;const f=cur;ui.showOrig=false;
- const c=await idb.get(f.id);if(!c||c.html===null||!$('#rbody'))return;
+const trJobs={};
+function getTranslation(f,tl){
+ const key=f.id+'|'+tl;
+ if(trJobs[key])return trJobs[key];
+ return trJobs[key]=(async()=>{
+  try{
+   let rec=await idb.get(key);
+   if(!(rec&&rec.mt===f.mt&&rec.v===2)){
+    const c=await idb.get(f.id);if(!c||c.html==null)return null;
+    const html=await translateHtml(c.html,tl);
+    rec={id:key,mt:f.mt,v:2,html,same:html===null};await idb.put(rec);
+   }
+   return rec;
+  }finally{delete trJobs[key]}
+ })();
+}
+let warmQ=Promise.resolve();
+function prewarm(f){
+ if(!cfg.trUrl||!f)return;
+ for(const l of['vi','en','ja'])warmQ=warmQ.then(async()=>{try{await getTranslation(f,l)}catch{}});
+}
+async function showRead(f,tl){
+ /* hiển thị bản gốc hoặc bản dịch đã có sẵn, giữ nguyên chỗ đang đọc */
+ const c=await idb.get(f.id);if(!c||c.html===null||!$('#rbody')||cur!==f)return false;
+ let html=c.html,label=tl?'':'Bản gốc';
+ if(tl){const rec=await idb.get(f.id+'|'+tl);
+  if(!(rec&&rec.mt===f.mt&&rec.v===2))return false;
+  if(!rec.same){html=rec.html;label='Bản dịch tự động'}}
  const ratio=RS.scrollTop/Math.max(1,RS.scrollHeight-RS.clientHeight);
- $('#rbody').innerHTML=c.html;RS.scrollTop=ratio*(RS.scrollHeight-RS.clientHeight);
- const st=$('#trs');if(st)st.textContent=targetLang()?'':'Bản gốc';
- if(targetLang())applyTranslation(f);
+ $('#rbody').innerHTML=html;RS.scrollTop=ratio*(RS.scrollHeight-RS.clientHeight);
+ const st=$('#trs');if(st)st.textContent=label;return true;
+}
+async function setReaderLang(){
+ if(!cur)return;const f=cur;ui.showOrig=false;const tl=targetLang();
+ if(await showRead(f,tl))return;       /* đã dịch sẵn → chuyển ngay */
+ const c=await idb.get(f.id);if(!c||c.html===null||!$('#rbody'))return;
+ $('#rbody').innerHTML=c.html;
+ const st=$('#trs');if(st)st.textContent=tl?'':'Bản gốc';
+ if(tl)applyTranslation(f);
 }
 async function applyTranslation(f){
  const tl=targetLang(),st=()=>$('#trs');
  if(ui.showOrig||!tl||!cfg.trUrl)return;
  try{
-  const key=f.id+'|'+tl;let rec=await idb.get(key);
-  if(!(rec&&rec.mt===f.mt&&rec.v===2)){
+  if(!(await showRead(f,tl))){
    if(st())st().textContent='Đang dịch…';
-   const c=await idb.get(f.id);
-   const html=await translateHtml(c.html,tl);
-   rec={id:key,mt:f.mt,v:2,html,same:html===null};await idb.put(rec);
+   const rec=await getTranslation(f,tl);
+   if(cur!==f||ui.showOrig||targetLang()!==tl)return;
+   if(rec)await showRead(f,tl);
   }
-  if(cur!==f||ui.showOrig)return;
-  if(rec.same){if(st())st().textContent='';return}
-  const ratio=RS.scrollTop/Math.max(1,RS.scrollHeight-RS.clientHeight);
-  $('#rbody').innerHTML=rec.html;
-  RS.scrollTop=ratio*(RS.scrollHeight-RS.clientHeight);
-  if(st())st().textContent='Bản dịch tự động';
  }catch(e){if(cur===f&&st())st().textContent='Không dịch được'}
 }
 let NTR=LS.get('rp_ntr',{});
