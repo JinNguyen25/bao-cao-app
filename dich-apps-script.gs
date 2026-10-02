@@ -8,6 +8,8 @@ function json(o) {
 function doPost(e) {
   try {
     var p = JSON.parse(e.postData.contents);
+    if (p.mode === 'sync_get') return json(syncGet(p.key));
+    if (p.mode === 'sync_set') return json(syncSet(p.key, String(p.data || '')));
     if (p.mode === 'dict') return json(dictLookup(String(p.word || ''), String(p.lang || 'en'), String(p.ext || '')));
     var tl = String(p.tl || 'en'), texts = p.texts || [], out;
     var r = LanguageApp.translate(texts.join('\n'), '', tl).split('\n');
@@ -75,6 +77,34 @@ function dictLookup(word, lang, ext) {
     if (viDef && viDef.toLowerCase() !== out.vi.toLowerCase()) out.vi = out.vi + ' — ' + viDef;
   }
   return out;
+}
+
+// ----- Đồng bộ giữa các thiết bị: lưu JSON trong Script Properties (chia nhỏ) -----
+function syncName(k) { return 'S_' + String(k).replace(/[^A-Za-z0-9]/g, '').slice(0, 40); }
+
+function syncGet(k) {
+  var props = PropertiesService.getScriptProperties(), name = syncName(k);
+  var n = Number(props.getProperty(name + '_n') || 0);
+  if (!n) return { data: null };
+  var s = '';
+  for (var i = 0; i < n; i++) s += props.getProperty(name + '_' + i) || '';
+  return { data: s };
+}
+
+function syncSet(k, data) {
+  var lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    var props = PropertiesService.getScriptProperties(), name = syncName(k);
+    var old = Number(props.getProperty(name + '_n') || 0), chunks = [];
+    for (var i = 0; i < data.length; i += 2500) chunks.push(data.substr(i, 2500));
+    var o = {};
+    o[name + '_n'] = String(chunks.length);
+    chunks.forEach(function (c, j) { o[name + '_' + j] = c; });
+    props.setProperties(o);
+    for (var j = chunks.length; j < old; j++) props.deleteProperty(name + '_' + j);
+    return { ok: true, chunks: chunks.length };
+  } finally { lock.releaseLock(); }
 }
 
 function doGet() { return ContentService.createTextOutput('ok'); }

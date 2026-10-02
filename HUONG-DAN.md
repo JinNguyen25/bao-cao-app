@@ -74,3 +74,13 @@ Giao diện đổi ngôn ngữ ngay trong **Cài đặt → Ngôn ngữ**. Để
 - Khi đang đọc bản tiếng Anh hoặc Nhật, bấm nút **sách có dấu tra** ở thanh dưới để bật **chế độ tra từ**, rồi **chạm vào từ bất kỳ**: hiện nghĩa tiếng Việt, cách đọc (hiragana với tiếng Nhật, phiên âm với tiếng Anh), loại từ, nghĩa tiếng Anh, và đọc to từ đó. Không cần chuyển sang tiếng Việt nên không mất chỗ đang đọc.
 - Bấm **★ Lưu từ** để lưu kèm câu ví dụ và link quay lại đúng báo cáo. Tab **Từ vựng** liệt kê từ đã lưu, có nút **Ôn tập** (thẻ ghi nhớ lặp lại ngắt quãng: 1, 3, 7, 14, 30 ngày) và **Xuất CSV** để nhập vào Anki.
 - Cần **cập nhật lại script**: vào script.google.com mở dự án cũ, dán lại toàn bộ nội dung `dich-apps-script.gs` mới → **Triển khai → Quản lý bản triển khai → ✎ → Phiên bản: Phiên bản mới → Triển khai** (URL giữ nguyên).
+
+## Đồng bộ giữa điện thoại và iPad
+Cần script Apps Script bản mới nhất (có `sync_get`/`sync_set`, xem `dich-apps-script.gs`) và đã kết nối địa chỉ dịch.
+1. Trên thiết bị thứ nhất: **Cài đặt → Đồng bộ thiết bị** → nhập một mã dài khó đoán (hoặc bấm **Tạo mã ngẫu nhiên**) → **Bật đồng bộ**.
+2. Bấm **Sao chép link cài thiết bị khác**, gửi link sang thiết bị thứ hai (Messenger, Ghi chú…) và mở. Link tự lưu địa chỉ dịch và mã đồng bộ; không cần gõ lại.
+3. Đồng bộ: từ vựng (kèm ôn tập), dấu trang, trạng thái đã đọc, vị trí đọc dở, thư mục nguồn, ngôn ngữ/màu/kiểu chữ. Cỡ chữ, giãn dòng, lề giữ riêng từng máy.
+4. App tự đồng bộ khi mở, khi quay lại app, và vài giây sau mỗi thay đổi. Nút **Đồng bộ ngay** để ép đồng bộ.
+- Mỗi thiết bị vẫn phải tự đăng nhập Google để đọc Drive.
+- Dữ liệu đồng bộ nằm trong Script Properties của script (giới hạn ~500 KB, đủ cho hàng nghìn từ vựng).
+- Hạn chế: "Đánh dấu chưa đọc" có thể bị máy kia ghi đè lại thành đã đọc.

@@ -204,7 +204,7 @@ const FONTS={
  serif:['Georgia','Georgia,"Times New Roman",serif'],
  sans:['Hệ thống','system-ui,-apple-system,"Segoe UI",Roboto,sans-serif'],
  mono:['Đơn cách','ui-monospace,Menlo,Consolas,monospace']};
-const APP_VERSION='1.7.1';
+const APP_VERSION='1.8.0';
 const DEFAULT_CLIENT_ID='261665890535-fa8n69cifr5kpr9k0qvurku6rss3kccd.apps.googleusercontent.com';/* điền Client ID vào đây để khỏi phải nhập trên điện thoại */
 const DEF={clientId:DEFAULT_CLIENT_ID,signedIn:false,theme:'sepia',custom:{bg:'#222831',fg:'#eeeeee'},font:'bevn',size:18,lh:1.75,mg:20,align:'left',awake:false,prefetch:10,lang:'vi',autoTr:true,trUrl:'',readLang:'ui'};
 let cfg=Object.assign({},DEF,LS.get('rp_cfg',{}));
@@ -215,6 +215,7 @@ let idx=LS.get('rp_idx',{roots:[],files:[],cats:[],at:0});
 if(!idx.roots)idx.roots=idx.rootId?[{id:idx.rootId,name:idx.rootName||'Báo cáo'}]:[];
 const hasRoots=()=>idx.roots.length>0;
 const nfc=t=>String(t==null?'':t).normalize('NFC');
+let vdel=LS.get('rp_vdel',{}),bmdel=LS.get('rp_bmdel',{}),posT=LS.get('rp_post',{});
 let readMap=LS.get('rp_read',{}),bm=LS.get('rp_bm',{}),posMap=LS.get('rp_pos',{});
 let tok=LS.get('rp_tok',null);
 const saveCfg=()=>LS.set('rp_cfg',cfg);
@@ -538,6 +539,8 @@ function vSettings(){
  <div class="sec"><h3>Tải sẵn để đọc offline</h3>
   <div class="ctl" style="margin-top:0"><label><span>Tự tải sẵn số báo cáo mới nhất</span><span id="v-pf">${cfg.prefetch}</span></label><input type="range" min="0" max="60" step="5" value="${cfg.prefetch}" data-pf></div>
   <p><button class="btn alt" data-act="clearcache">Xóa dữ liệu đã tải</button></p></div>
+ <div class="sec"><h3>Đồng bộ thiết bị</h3>
+  ${!cfg.trUrl?`<p>Cần kết nối dịch (địa chỉ Apps Script) trước.</p>`:cfg.syncKey?`<p style="color:var(--fg)">✓ Đang đồng bộ từ vựng, dấu trang, đã đọc, vị trí đọc, thư mục và cài đặt giữa các thiết bị.</p><p id="syncst">${cfg.syncAt?'Đồng bộ lần cuối '+ago(cfg.syncAt):''}</p><div class="kv"><span>Mã đồng bộ</span><span style="color:var(--fg);font-weight:600">${esc(cfg.syncCode||'')}</span></div><p><button class="btn" data-act="syncnow">Đồng bộ ngay</button><button class="btn alt" data-act="copylink">Sao chép link cài thiết bị khác</button></p><p><button data-act="syncoff" style="color:#d33;font-size:13px">Tắt đồng bộ</button></p>`:`<p>Nhập cùng một mã trên mọi thiết bị (điện thoại, iPad…) để dùng chung dữ liệu. Mã chỉ để ghép các thiết bị với nhau, hãy đặt dài và khó đoán.</p><input type="text" id="syncc" placeholder="Mã đồng bộ" autocomplete="off"><p><button class="btn" data-act="syncon">Bật đồng bộ</button><button class="btn alt" data-act="gencode">Tạo mã ngẫu nhiên</button></p>`}</div>
  ${RT.get()&&SEC()?'':`<details class="sec"><summary style="cursor:pointer;font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:var(--mut);font-weight:600">Đăng nhập lâu dài (chưa bật)</summary>
   <p style="margin-top:10px">Dán Client secret của Client ID (Google Cloud → Clients → chọn client → Client secrets) để app tự đăng nhập, khỏi phải bấm lại mỗi giờ. Chỉ lưu trên máy này.</p><input type="password" id="sec" placeholder="GOCSPX-…" autocomplete="off"><p><button class="btn" data-act="enablelt">Bật đăng nhập lâu dài</button></p></details>`}
  <div class="sec"><h3>Cập nhật ứng dụng</h3><div class="kv"><span>Phiên bản</span><span>${APP_VERSION}</span></div><p><button class="btn alt" data-act="chkupd">Kiểm tra cập nhật</button></p></div>
@@ -607,7 +610,7 @@ function closeReader(){
 function updateProg(){
  const max=RS.scrollHeight-RS.clientHeight,r=max>0?RS.scrollTop/max:0;
  $('#prog').style.width=(r*100)+'%';
- if(cur){clearTimeout(saveT);saveT=setTimeout(()=>{if(!cur)return;posMap[cur.id]=r>.98?0:+r.toFixed(4);LS.set('rp_pos',posMap)},400)}
+ if(cur){clearTimeout(saveT);saveT=setTimeout(()=>{if(!cur)return;posMap[cur.id]=r>.98?0:+r.toFixed(4);posT[cur.id]=Date.now();LS.set('rp_post',posT);LS.set('rp_pos',posMap)},400)}
 }
 RS.addEventListener('scroll',updateProg,{passive:true});
 let lastY=0;RS.addEventListener('scroll',()=>{if(ui.dict)return;const y=RS.scrollTop;if(Math.abs(y-lastY)>40){R.classList.toggle('hide',y>lastY&&y>80);lastY=y}},{passive:true});
@@ -683,7 +686,7 @@ document.addEventListener('click',async e=>{
   case'set':{const k=el.dataset.k;cfg[k]=(k==='awake'||k==='autoTr')?v==='true':v;saveCfg();applyAppearance();el.parentElement.querySelectorAll('button').forEach(b=>b.classList.toggle('on',b===el));if(k==='lang')langChanged();if(k==='readLang')setReaderLang();if(k==='autoTr'){if(cur)langChanged();else ensureNames()}}break;
   case'rset':openSheet(`<h2>Giao diện đọc <button class="ib" data-act="closesheet">✕</button></h2>${appearanceHTML()}`,bindAppearance);break;
   case'closesheet':closeSheet();break;
-  case'bm':if(cur){if(bm[cur.id])delete bm[cur.id];else bm[cur.id]=1;LS.set('rp_bm',bm);setBm();toast(bm[cur.id]?'Đã lưu':'Đã bỏ lưu')}break;
+  case'bm':if(cur){if(bm[cur.id])delete bm[cur.id];else{bm[cur.id]=Date.now();delete bmdel[cur.id]}if(!bm[cur.id])bmdel[cur.id]=Date.now();LS.set('rp_bmdel',bmdel);LS.set('rp_bm',bm);setBm();toast(bm[cur.id]?'Đã lưu':'Đã bỏ lưu')}break;
   case'older':case'newer':neighbour(a);break;
   case'tts':toggleTTS();break;
   case'unread':if(cur){markRead(cur,false);toast('Đã đánh dấu chưa đọc')}break;
@@ -706,14 +709,14 @@ document.addEventListener('click',async e=>{
   case'dsave':saveWord();break;
   case'dspeak':if(dictCur)speak((dictCur.res&&dictCur.res.word)||dictCur.word,dictCur.lang);break;
   case'vfilter':ui.vf=v;route();break;
-  case'vdel':vocab=vocab.filter(x=>x.id!==el.dataset.id);saveVocab();route();toast('Đã xóa từ');break;
+  case'vdel':vdel[el.dataset.id]=Date.now();LS.set('rp_vdel',vdel);vocab=vocab.filter(x=>x.id!==el.dataset.id);saveVocab();route();toast('Đã xóa từ');break;
   case'vspeak':{const x=vocab.find(y=>y.id===el.dataset.id);if(x)speak(x.word,x.lang);break}
   case'vexport':exportVocab();break;
   case'rvstart':ui.rv=null;location.hash='#/review';break;
   case'rvshow':ui.rv.show=true;route();break;
   case'rvspeak':{const x=ui.rv&&vocab.find(y=>y.id===ui.rv.q[0]);if(x)speak(x.word,x.lang);break}
-  case'rvyes':{const rv=ui.rv,x=vocab.find(y=>y.id===rv.q[0]);if(x){x.box=Math.min(x.box+1,DAYS.length-1);x.due=Date.now()+DAYS[x.box]*864e5;saveVocab()}rv.q.shift();rv.show=false;route();break}
-  case'rvno':{const rv=ui.rv,x=vocab.find(y=>y.id===rv.q[0]);if(x){x.box=0;x.due=Date.now()+6e5;saveVocab()}rv.q.push(rv.q.shift());rv.show=false;route();break}
+  case'rvyes':{const rv=ui.rv,x=vocab.find(y=>y.id===rv.q[0]);if(x){x.box=Math.min(x.box+1,DAYS.length-1);x.due=Date.now()+DAYS[x.box]*864e5;x.upd=Date.now();saveVocab()}rv.q.shift();rv.show=false;route();break}
+  case'rvno':{const rv=ui.rv,x=vocab.find(y=>y.id===rv.q[0]);if(x){x.box=0;x.due=Date.now()+6e5;x.upd=Date.now();saveVocab()}rv.q.push(rv.q.shift());rv.show=false;route();break}
   case'savetr':{const u=($('#tru').value||'').trim();if(!/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(u))return toast('Địa chỉ không đúng dạng');cfg.trUrl=u;saveCfg();toast('Đã lưu địa chỉ dịch');ensureNames();route();break}
   case'trreset':cfg.trUrl='';saveCfg();route();break;
   case'testtr':{if(!cfg.trUrl)return toast('Chưa nhập địa chỉ dịch');try{const o=await trBatch(['Xin chào, đây là bản thử.'],cfg.lang==='vi'?'en':cfg.lang);toast(o[0])}catch(err){toast('Dịch lỗi: '+err.message)}break}
@@ -721,6 +724,11 @@ document.addEventListener('click',async e=>{
    const cr=cfg.readLang||'ui',opt=[['ui','Theo ngôn ngữ app'],['orig','Bản gốc'],['vi','Tiếng Việt'],['en','English'],['ja','日本語']];
    openSheet(`<h2>Ngôn ngữ báo cáo <button class="ib" data-act="closesheet">✕</button></h2>`+opt.map(([v,l])=>`<button class="fl" data-act="readlang" data-v="${v}"><b>${l}</b>${cr===v?'<span style="margin-left:auto;color:var(--ac)">✓</span>':''}</button>`).join(''));break}
   case'readlang':cfg.readLang=v;saveCfg();closeSheet();setReaderLang();break;
+  case'gencode':{const a='abcdefghjkmnpqrstuvwxyz23456789';let c='';const r=crypto.getRandomValues(new Uint8Array(14));for(const x of r)c+=a[x%a.length];$('#syncc').value=c.replace(/(.{4})(?=.)/g,'$1-');break}
+  case'syncon':{const c=($('#syncc').value||'').trim();if(c.length<6)return toast('Mã quá ngắn (tối thiểu 6 ký tự)');cfg.syncCode=c;cfg.syncKey=await codeHash(c);saveCfg();route();syncNow(true);break}
+  case'syncoff':cfg.syncKey='';cfg.syncCode='';saveCfg();route();toast('Đã tắt đồng bộ');break;
+  case'syncnow':syncNow(true);break;
+  case'copylink':{const l=location.origin+location.pathname+'?tr='+encodeURIComponent(cfg.trUrl)+'&sc='+encodeURIComponent(cfg.syncCode||'');try{await navigator.clipboard.writeText(l);toast('Đã sao chép link, gửi sang thiết bị kia rồi mở')}catch{prompt('Sao chép link này:',l)}break}
   case'chkupd':await checkUpdate(true);break;
   case'doupd':await applyUpdate();break;
   case'rmroot':if(confirm(T('Bỏ thư mục này khỏi app? (không xóa gì trên Drive)'))){idx.roots=idx.roots.filter(r=>r.id!==el.dataset.id);idx.cats=idx.cats.filter(c=>c.root!==el.dataset.id);const ids=new Set(idx.cats.map(c=>c.id));idx.files=idx.files.filter(f=>ids.has(f.cat));LS.set('rp_idx',idx);route()}break;
@@ -734,7 +742,7 @@ document.addEventListener('input',e=>{
 window.addEventListener('hashchange',()=>{navCount++;route()});
 window.addEventListener('online',()=>{route();sync()});
 window.addEventListener('offline',route);
-document.addEventListener('visibilitychange',()=>{if(!document.hidden){checkUpdate();if(cur&&cfg.awake&&navigator.wakeLock&&!wake)navigator.wakeLock.request('screen').then(w=>wake=w).catch(()=>{});if(hasRoots()&&Date.now()-idx.at>10*60e3&&navigator.onLine)sync()}});
+document.addEventListener('visibilitychange',()=>{if(document.hidden)syncNow(false);if(!document.hidden){syncNow(false);checkUpdate();if(cur&&cfg.awake&&navigator.wakeLock&&!wake)navigator.wakeLock.request('screen').then(w=>wake=w).catch(()=>{});if(hasRoots()&&Date.now()-idx.at>10*60e3&&navigator.onLine)sync()}});
 
 
 /* ---------- đa ngôn ngữ giao diện (vi / en / ja) ---------- */
@@ -821,6 +829,13 @@ const D={
 'Đã xóa từ':['Word removed','単語を削除しました'],'Không có từ nào cần ôn':['Nothing to review','復習する単語はありません'],'Đã lưu từ':['Word saved','単語を保存しました'],
 'Đã kết nối dịch':['Translation connected','翻訳に接続済み'],'Đổi':['Change','変更'],'Đăng nhập lâu dài (chưa bật)':['Stay signed in (not enabled)','ログイン維持（未有効）'],'Địa chỉ không đúng dạng':['Invalid URL format','URLの形式が正しくありません'],
 'Ngôn ngữ báo cáo':['Report language','レポートの言語'],'Ngôn ngữ đọc báo cáo':['Report reading language','レポートの閲覧言語'],'Theo ngôn ngữ app':['Same as app language','アプリの言語に合わせる'],'Theo app':['Same as app','アプリに合わせる'],'Gốc':['Original','原文'],
+'Đồng bộ thiết bị':['Device sync','端末間の同期'],'Cần kết nối dịch (địa chỉ Apps Script) trước.':['Connect translation (Apps Script URL) first.','先に翻訳（Apps ScriptのURL）を接続してください。'],
+'✓ Đang đồng bộ từ vựng, dấu trang, đã đọc, vị trí đọc, thư mục và cài đặt giữa các thiết bị.':['✓ Syncing vocabulary, bookmarks, read status, reading position, folders and settings across devices.','✓ 単語帳・しおり・既読・読書位置・フォルダ・設定を端末間で同期中。'],
+'Mã đồng bộ':['Sync code','同期コード'],'Đồng bộ ngay':['Sync now','今すぐ同期'],'Sao chép link cài thiết bị khác':['Copy setup link for another device','別の端末用リンクをコピー'],'Tắt đồng bộ':['Turn off sync','同期をオフ'],
+'Nhập cùng một mã trên mọi thiết bị (điện thoại, iPad…) để dùng chung dữ liệu. Mã chỉ để ghép các thiết bị với nhau, hãy đặt dài và khó đoán.':['Enter the same code on every device (phone, iPad…) to share data. The code only pairs your devices, so make it long and hard to guess.','すべての端末（スマホ、iPadなど）で同じコードを入力するとデータを共有できます。コードは端末の紐付け用です。長く推測されにくいものにしてください。'],
+'Bật đồng bộ':['Turn on sync','同期をオン'],'Tạo mã ngẫu nhiên':['Generate random code','ランダムコードを作成'],'Mã đồng bộ':['Sync code','同期コード'],
+'Mã quá ngắn (tối thiểu 6 ký tự)':['Code too short (min 6 characters)','コードが短すぎます（6文字以上）'],'Đã đồng bộ':['Synced','同期しました'],'Đã tắt đồng bộ':['Sync turned off','同期をオフにしました'],
+'Đã sao chép link, gửi sang thiết bị kia rồi mở':['Link copied. Send it to the other device and open it.','リンクをコピーしました。別の端末に送って開いてください。'],
 'Lưu':['Save','保存'],'Thử dịch':['Test','テスト'],
 'Đang dịch…':['Translating…','翻訳中…'],'Bản dịch tự động':['Auto-translated','自動翻訳'],'Bản gốc':['Original','原文'],'Không dịch được':['Translation failed','翻訳できませんでした'],
 'Xem bản gốc / bản dịch':['Toggle original / translation','原文／翻訳を切り替え'],'Chưa cài dịch tự động (xem Cài đặt)':['Auto-translation is not set up (see Settings)','自動翻訳が未設定です（設定を参照）'],
@@ -832,6 +847,8 @@ const WDS=['Chủ nhật','Thứ hai','Thứ ba','Thứ tư','Thứ năm','Thứ
 function T(s,L){
  L=L||cfg.lang;if(L==='vi'||!s)return s;const i=LI[L];let m;
  if(D[s])return D[s][i];
+ if(m=s.match(/^Đồng bộ lần cuối (.+)$/))return i?`最終同期: ${T(m[1],L)}`:`Last synced ${T(m[1],L)}`;
+ if(m=s.match(/^Đồng bộ lỗi: (.*)$/))return i?`同期エラー: ${m[1]}`:`Sync error: ${m[1]}`;
  if(m=s.match(/^(\d+) từ · (\d+) cần ôn$/))return i?`${m[1]}語 · 復習${m[2]}件`:`${m[1]} words · ${m[2]} due`;
  if(m=s.match(/^Ôn tập \((\d+)\)$/))return i?`復習 (${m[1]})`:`Review (${m[1]})`;
  if(m=s.match(/^(\d+) báo cáo(?: · mới nhất (.+))?$/))return i?`${m[1]}件のレポート${m[2]?' · 最新 '+m[2]:''}`:`${m[1]} report${m[1]==1?'':'s'}${m[2]?' · latest '+m[2]:''}`;
@@ -1025,8 +1042,8 @@ function setDictMode(on){
 function saveWord(){
  const d=dictCur;if(!d||!d.res)return;const r=d.res,canon=r.word||d.word,id=vId(d.lang,canon);
  const i=vocab.findIndex(v=>v.id===id);
- if(i>=0){vocab.splice(i,1);saveVocab();dictRender();toast('Đã xóa từ');return}
- vocab.unshift({id,word:canon,lang:d.lang,reading:r.reading||'',vi:r.vi||'',en:(r.en||[]).join(' · '),pos:r.pos||'',ctx:d.ctx||'',src:cur?cur.id:'',at:Date.now(),box:0,due:Date.now()});
+ if(i>=0){vdel[id]=Date.now();LS.set('rp_vdel',vdel);vocab.splice(i,1);saveVocab();dictRender();toast('Đã xóa từ');return}
+ vocab.unshift({id,word:canon,lang:d.lang,reading:r.reading||'',vi:r.vi||'',en:(r.en||[]).join(' · '),pos:r.pos||'',ctx:d.ctx||'',src:cur?cur.id:'',at:Date.now(),upd:Date.now(),box:0,due:Date.now()});
  saveVocab();dictRender();toast('Đã lưu từ');
 }
 function vVocab(){
@@ -1060,6 +1077,63 @@ function exportVocab(){
  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='tu-vung.csv';document.body.appendChild(a);a.click();a.remove();
 }
 
+
+/* ---------- đồng bộ giữa các thiết bị (qua Apps Script) ---------- */
+const SYNCK=new Set(['rp_vocab','rp_bm','rp_read','rp_pos','rp_post','rp_cfg','rp_idx','rp_vdel','rp_bmdel']);
+const CFGK=['theme','custom','font','lang','autoTr','readLang'];
+let syncBusy=false,syncT=null,rootsChanged=false;
+{const _set=LS.set;LS.set=(k,v)=>{_set(k,v);if(!syncBusy&&SYNCK.has(k))schedSync()}}
+function schedSync(){if(!cfg.syncKey||!cfg.trUrl)return;clearTimeout(syncT);syncT=setTimeout(()=>syncNow(false),15000)}
+const sortObj=o=>Object.keys(o||{}).sort().reduce((a,k)=>(a[k]=o[k],a),{});
+async function codeHash(c){const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode('bc:'+String(c).trim()));return[...new Uint8Array(b)].slice(0,12).map(x=>x.toString(16).padStart(2,'0')).join('')}
+async function syncCall(o){
+ const r=await fetch(cfg.trUrl,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(o)});
+ if(!r.ok)throw new Error('HTTP '+r.status);const j=await r.json();if(j.error)throw new Error(j.error);return j;
+}
+const cfgSubset=()=>{const o={};for(const k of CFGK)o[k]=cfg[k];return o};
+function snapAt(key,cur){const st=LS.get(key,null),ss=JSON.stringify(cur);if(!st){LS.set(key,{s:ss,at:Date.now()});return Date.now()}if(st.s!==ss){LS.set(key,{s:ss,at:Date.now()});return Date.now()}return st.at}
+function buildBlob(){
+ const cfgAt=snapAt('rp_cfgsnap',cfgSubset()),rootsAt=snapAt('rp_rootsnap',idx.roots);
+ return{v:1,vocab:[...vocab].sort((a,b)=>a.id<b.id?-1:1),vdel:sortObj(vdel),bm:sortObj(bm),bmdel:sortObj(bmdel),read:sortObj(readMap),pos:sortObj(posMap),post:sortObj(posT),cfg:cfgSubset(),cfgAt,roots:idx.roots,rootsAt};
+}
+function mergeRemote(r){
+ let ch=false;rootsChanged=false;
+ const lv=new Map(vocab.map(v=>[v.id,v])),ts=v=>v.upd||v.at||0;
+ for(const v of r.vocab||[]){const l=lv.get(v.id);if(!l||ts(v)>ts(l)){lv.set(v.id,v);ch=true}}
+ for(const[id,t]of Object.entries(r.vdel||{}))if(t>(vdel[id]||0))vdel[id]=t;
+ const nv=[...lv.values()].filter(v=>!(vdel[v.id]>ts(v)));if(nv.length!==vocab.length)ch=true;
+ vocab=nv.sort((a,b)=>b.at-a.at);
+ for(const[id,t]of Object.entries(r.bm||{}))if(t>(bm[id]||0)){bm[id]=t;ch=true}
+ for(const[id,t]of Object.entries(r.bmdel||{}))if(t>(bmdel[id]||0))bmdel[id]=t;
+ for(const id of Object.keys(bm))if(bmdel[id]>bm[id]){delete bm[id];ch=true}
+ for(const[id,mt]of Object.entries(r.read||{}))if(mt>(readMap[id]||0)){readMap[id]=mt;ch=true}
+ for(const[id,t]of Object.entries(r.post||{}))if(t>(posT[id]||0)){posT[id]=t;posMap[id]=(r.pos||{})[id]||0;ch=true}
+ LS.set('rp_vocab',vocab);LS.set('rp_vdel',vdel);LS.set('rp_bm',bm);LS.set('rp_bmdel',bmdel);LS.set('rp_read',readMap);LS.set('rp_pos',posMap);LS.set('rp_post',posT);
+ const cs=LS.get('rp_cfgsnap',null);
+ if(r.cfg&&(r.cfgAt||0)>(cs?cs.at:-1)){Object.assign(cfg,r.cfg);saveCfg();applyAppearance();document.documentElement.lang=cfg.lang;trTree(document.body);LS.set('rp_cfgsnap',{s:JSON.stringify(cfgSubset()),at:r.cfgAt});ch=true}
+ const rs=LS.get('rp_rootsnap',null);
+ if(r.roots&&(r.rootsAt||0)>(rs?rs.at:-1)&&JSON.stringify(r.roots)!==JSON.stringify(idx.roots)){idx.roots=r.roots;idx.at=0;LS.set('rp_idx',idx);LS.set('rp_rootsnap',{s:JSON.stringify(idx.roots),at:r.rootsAt});ch=true;rootsChanged=true}
+ else if(r.roots&&rs&&JSON.stringify(r.roots)===JSON.stringify(idx.roots))LS.set('rp_rootsnap',{s:rs.s,at:Math.max(rs.at,r.rootsAt||0)});
+ return ch;
+}
+async function syncNow(manual){
+ if(!cfg.syncKey||!cfg.trUrl||syncBusy)return;
+ if(!navigator.onLine){if(manual)toast('Đang offline');return}
+ syncBusy=true;
+ try{
+  const g=await syncCall({mode:'sync_get',key:cfg.syncKey});
+  let remote=null;if(g.data){try{remote=JSON.parse(g.data)}catch{}}
+  const changed=remote?mergeRemote(remote):false;
+  const str=JSON.stringify(buildBlob());
+  if(str!==g.data){if(str.length>200000)toast('Dữ liệu đồng bộ rất lớn, có thể bị từ chối');await syncCall({mode:'sync_set',key:cfg.syncKey,data:str})}
+  cfg.syncAt=Date.now();saveCfg();
+  if(changed){if(!location.hash.startsWith('#/read'))route();if(rootsChanged&&cfg.signedIn)sync();setBm&&cur&&setBm()}
+  if(manual)toast('Đã đồng bộ');
+ }catch(e){if(manual)toast('Đồng bộ lỗi: '+e.message)}
+ syncBusy=false;
+ if(document.getElementById('syncst'))document.getElementById('syncst').textContent=cfg.syncAt?'Đồng bộ lần cuối '+ago(cfg.syncAt):'';
+}
+
 /* ---------- cập nhật ứng dụng ---------- */
 let newVer='';
 async function checkUpdate(manual){
@@ -1081,12 +1155,14 @@ async function applyUpdate(){
 
 /* ---------- khởi động ---------- */
 (function(){try{const q=new URLSearchParams(location.search).get('tr');
- if(q&&/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(q)){cfg.trUrl=q;saveCfg();history.replaceState(null,'',location.pathname+location.hash);setTimeout(()=>{toast('Đã lưu địa chỉ dịch');ensureNames()},600)}}catch{}})();
+ if(q&&/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(q)){cfg.trUrl=q;saveCfg();history.replaceState(null,'',location.pathname+location.hash);setTimeout(()=>{toast('Đã lưu địa chỉ dịch');ensureNames()},600)}
+ const sc=new URLSearchParams(location.search).get('sc');
+ if(sc){history.replaceState(null,'',location.pathname+location.hash);codeHash(sc).then(h=>{cfg.syncCode=sc;cfg.syncKey=h;saveCfg();syncNow(true)})}}catch{}})();
 applyAppearance();document.documentElement.lang=cfg.lang;trTree(document.body);
 if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
 route();
 if(hasRoots()&&cfg.signedIn&&(Date.now()-idx.at>5*60e3))sync();
-checkUpdate();
+checkUpdate();setTimeout(()=>syncNow(false),1500);
 </script>
 </body>
 </html>
