@@ -211,12 +211,14 @@ const FONTS={
  serif:['Georgia','Georgia,"Times New Roman",serif'],
  sans:['Hệ thống','system-ui,-apple-system,"Segoe UI",Roboto,sans-serif'],
  mono:['Đơn cách','ui-monospace,Menlo,Consolas,monospace']};
-const APP_VERSION='2.2.1';
+const APP_VERSION='2.3.0';
 const DEFAULT_CLIENT_ID='261665890535-fa8n69cifr5kpr9k0qvurku6rss3kccd.apps.googleusercontent.com';/* điền Client ID vào đây để khỏi phải nhập trên điện thoại */
-const DEF={clientId:DEFAULT_CLIENT_ID,signedIn:false,theme:'sepia',custom:{bg:'#222831',fg:'#eeeeee'},font:'bevn',size:18,lh:1.75,mg:20,align:'left',awake:false,prefetch:10,lang:'vi',autoTr:true,trUrl:'',readLang:'ui',viTts:'google'};
+const DEF={clientId:DEFAULT_CLIENT_ID,signedIn:false,theme:'sepia',custom:{bg:'#222831',fg:'#eeeeee'},font:'bevn',size:18,lh:1.75,mg:20,align:'left',awake:false,prefetch:10,lang:'vi',autoTr:true,trUrl:'',readLang:'ui',viTts:'google',tts:{vi:'google',en:'device',ja:'device'},style:{vi:'natural',en:'natural',ja:'natural'}};
 let cfg=Object.assign({},DEF,LS.get('rp_cfg',{}));
 if(!cfg.fontV){cfg.fontV=2;cfg.font='bevn';cfg.size=Math.min(cfg.size,18);LS.set('rp_cfg',cfg)}
 if(!FONTS[cfg.font])cfg.font='bevn';
+cfg.tts=Object.assign({vi:'google',en:'device',ja:'device'},cfg.tts||{});cfg.style=Object.assign({vi:'natural',en:'natural',ja:'natural'},cfg.style||{});
+if(cfg.viTts==='device'&&!cfg._vm){cfg.tts.vi='device';cfg._vm=1}
 if(DEFAULT_CLIENT_ID&&cfg.clientId!==DEFAULT_CLIENT_ID){cfg.clientId=DEFAULT_CLIENT_ID;LS.set('rp_cfg',cfg)}
 let idx=LS.get('rp_idx',{roots:[],files:[],cats:[],at:0});
 if(!idx.roots)idx.roots=idx.rootId?[{id:idx.rootId,name:idx.rootName||'Báo cáo'}]:[];
@@ -547,7 +549,11 @@ function vSettings(){
  <div class="sec"><h3>Tải sẵn để đọc offline</h3>
   <div class="ctl" style="margin-top:0"><label><span>Tự tải sẵn số báo cáo mới nhất</span><span id="v-pf">${cfg.prefetch}</span></label><input type="range" min="0" max="60" step="5" value="${cfg.prefetch}" data-pf></div>
   <p><button class="btn alt" data-act="clearcache">Xóa dữ liệu đã tải</button></p></div>
- <div class="sec"><h3>Giọng đọc</h3><div class="ctl" style="margin-top:0"><label>Giọng tiếng Việt</label><div class="seg">${lb('viTts','google','Google (tự nhiên, cần mạng)')}${lb('viTts','device','Giọng máy')}</div></div>${['vi','en','ja'].map(L=>{const vs=(typeof VOICES!=='undefined'?VOICES:[]).filter(v=>v.lang.toLowerCase().replace('_','-').startsWith(L));return `<label style="font-size:13px;color:var(--mut)">${{vi:'Tiếng Việt',en:'English',ja:'日本語'}[L]}</label><select data-voice="${L}"><option value="">Tự chọn</option>${vs.map(v=>`<option value="${esc(v.voiceURI)}" ${((cfg.voices||{})[L]===v.voiceURI)?'selected':''}>${esc(v.name)} (${esc(v.lang)})</option>`).join('')}</select><p style="margin:2px 0 10px"><button class="btn alt" data-act="voicetest" data-v="${L}" style="padding:6px 12px;font-size:13px">Nghe thử</button></p>`}).join('')}<p>Giọng nghe kỳ? Chọn giọng khác ở đây (nên chọn giọng có chữ Enhanced / Premium nếu máy có; tải thêm ở Cài đặt iPad → Trợ năng → Nội dung đọc → Giọng nói).</p></div>
+ <div class="sec"><h3>Giọng đọc</h3>${['vi','en','ja'].map(L=>{const vs=(typeof VOICES!=='undefined'?VOICES:[]).filter(v=>v.lang.toLowerCase().replace('_','-').startsWith(L));const bt=(k,v,l)=>`<button data-act="ttsset" data-k="${k}" data-l="${L}" data-v="${v}" class="${((k==='engine'?cfg.tts:cfg.style)||{})[L]===v?'on':''}">${l}</button>`;return `<div style="margin-bottom:18px"><label style="font-size:14px;font-weight:600">${{vi:'Tiếng Việt',en:'English',ja:'日本語'}[L]}</label>
+ <div class="seg" style="margin:6px 0">${bt('engine','google','Google (tự nhiên)')}${bt('engine','device','Giọng máy')}</div>
+ <div class="seg" style="margin:6px 0">${bt('style','natural','Tự nhiên')}${bt('style','young','Trẻ trung')}${bt('style','cute','Dễ thương')}</div>
+ <select data-voice="${L}"><option value="">Tự chọn</option>${vs.map(v=>`<option value="${esc(v.voiceURI)}" ${((cfg.voices||{})[L]===v.voiceURI)?'selected':''}>${esc(v.name)} (${esc(v.lang)})</option>`).join('')}</select>
+ <button class="btn alt" data-act="voicetest" data-v="${L}" style="padding:6px 12px;font-size:13px">Nghe thử</button></div>`}).join('')}<p>Kiểu Trẻ trung / Dễ thương chỉ áp dụng cho Giọng máy (nâng cao độ giọng và ưu tiên giọng nữ trẻ). Nên chọn giọng Enhanced / Premium nếu có: tiếng Nhật Kyoko, O-ren; tiếng Anh Samantha, Ava, Zoe. Tải thêm ở iPad: Cài đặt → Trợ năng → Nội dung đọc → Giọng nói.</p></div>
  <div class="sec"><h3>Đồng bộ thiết bị</h3>
   ${!cfg.trUrl?`<p>Cần kết nối dịch (địa chỉ Apps Script) trước.</p>`:cfg.syncKey?`<p style="color:var(--fg)">✓ Đang đồng bộ từ vựng, dấu trang, đã đọc, vị trí đọc, thư mục và cài đặt giữa các thiết bị.</p><p id="syncst">${cfg.syncAt?'Đồng bộ lần cuối '+ago(cfg.syncAt):''}</p><div class="kv"><span>Mã đồng bộ</span><span style="color:var(--fg);font-weight:600">${esc(cfg.syncCode||'')}</span></div><p><button class="btn" data-act="syncnow">Đồng bộ ngay</button><button class="btn alt" data-act="copylink">Sao chép link cài thiết bị khác</button></p><p><button data-act="syncoff" style="color:#d33;font-size:13px">Tắt đồng bộ</button></p>`:`<p>Nhập cùng một mã trên mọi thiết bị (điện thoại, iPad…) để dùng chung dữ liệu. Mã chỉ để ghép các thiết bị với nhau, hãy đặt dài và khó đoán.</p><input type="text" id="syncc" placeholder="Mã đồng bộ" autocomplete="off"><p><button class="btn" data-act="syncon">Bật đồng bộ</button><button class="btn alt" data-act="gencode">Tạo mã ngẫu nhiên</button></p>`}</div>
  ${RT.get()&&SEC()?'':`<details class="sec"><summary style="cursor:pointer;font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:var(--mut);font-weight:600">Đăng nhập lâu dài (chưa bật)</summary>
@@ -656,7 +662,10 @@ function speakOnline(text,lang,done,fallback){
  };
  next();
 }
-const useOnlineVi=L=>L==='vi'&&cfg.viTts!=='device'&&navigator.onLine;
+const hasKanji=t=>/[\u3400-\u9fff]/.test(t);
+const useOnline=(L,text)=>navigator.onLine&&((cfg.tts||{})[L]==='google'||(L==='ja'&&text&&hasKanji(text)));   /* chữ Hán: giọng Google đọc chuẩn hơn giọng máy */
+const PITCH={natural:1,young:1.25,cute:1.45};
+const YOUNG={en:/samantha|ava|zoe|allison|susan|serena|fiona|karen|nicky|tessa|moira|joelle|google us/,ja:/kyoko|o-ren|nanami|haruka|sayaka|ayumi|mizuki|google/,vi:/linh|hoaimy|google/};
 function stopTTS(){tts.on=false;stopOnline();try{speechSynthesis.cancel()}catch{}$('#ttsBtn').style.color=''}
 function toggleTTS(){
  if(tts.on){stopTTS();return}
@@ -665,9 +674,9 @@ function toggleTTS(){
  if(!('speechSynthesis' in window)){stopTTS();return toast('Máy không hỗ trợ đọc to')}
  const parts=(body.match(/[^.!?。！？\n]{1,200}[.!?。！？\n]*/g)||[]).map(s=>s.trim()).filter(Boolean);
  let i=0;tts.on=true;$('#ttsBtn').style.color='var(--ac)';
- const next=()=>{if(!tts.on||i>=parts.length){stopTTS();return}const u=new SpeechSynthesisUtterance(parts[i++]),vc=pickVoice(L);if(vc){u.voice=vc;u.lang=vc.lang}else u.lang=L==='ja'?'ja-JP':L==='en'?'en-US':'vi-VN';u.rate=L==='ja'?.9:.95;u.onend=next;u.onerror=()=>stopTTS();speechSynthesis.speak(u)};
+ const next=()=>{if(!tts.on||i>=parts.length){stopTTS();return}const u=new SpeechSynthesisUtterance(parts[i++]),vc=pickVoice(L);if(vc){u.voice=vc;u.lang=vc.lang}else u.lang=L==='ja'?'ja-JP':L==='en'?'en-US':'vi-VN';u.rate=L==='ja'?.9:.95;u.pitch=PITCH[(cfg.style||{})[L]]||1;u.onend=next;u.onerror=()=>stopTTS();speechSynthesis.speak(u)};
  next();};
- if(useOnlineVi(L)){tts.on=true;$('#ttsBtn').style.color='var(--ac)';speakOnline(body,'vi',()=>stopTTS(),()=>{if(tts.on)runDevice()});return}
+ if(useOnline(L)){tts.on=true;$('#ttsBtn').style.color='var(--ac)';speakOnline(body,L,()=>stopTTS(),()=>{if(tts.on)runDevice()});return}
  runDevice();
 }
 /* bottom sheet */
@@ -751,6 +760,7 @@ document.addEventListener('click',async e=>{
   case'trto':if(trView)showTrans(trView.text,v);break;
   case'trspeak':if(trView&&trView.out)speak(trView.out,trView.tl,1);break;
   case'trback':trView=null;if(dictCur)dictRender();break;
+  case'ttsset':{const L=el.dataset.l,k=el.dataset.k;if(k==='engine')cfg.tts[L]=v;else{cfg.style[L]=v;if(v!=='natural'&&cfg.tts[L]==='google'){cfg.tts[L]='device';toast('Đã chuyển sang Giọng máy để dùng kiểu giọng này')}}saveCfg();route();speak({vi:'Xin chào, đây là giọng đọc thử.',en:'Hello, this is a voice test.',ja:'こんにちは、これは音声のテストです。'}[L],L);break}
   case'voicetest':speak({vi:'Xin chào, đây là giọng đọc thử.',en:'Hello, this is a voice test.',ja:'こんにちは、これは音声のテストです。'}[v],v);break;
   case'vfilter':ui.vf=v;route();break;
   case'vdel':vdel[el.dataset.id]=Date.now();LS.set('rp_vdel',vdel);vocab=vocab.filter(x=>x.id!==el.dataset.id);saveVocab();route();toast('Đã xóa từ');break;
@@ -881,7 +891,8 @@ const D={
 'Bật đồng bộ':['Turn on sync','同期をオン'],'Tạo mã ngẫu nhiên':['Generate random code','ランダムコードを作成'],'Mã đồng bộ':['Sync code','同期コード'],
 'Mã quá ngắn (tối thiểu 6 ký tự)':['Code too short (min 6 characters)','コードが短すぎます（6文字以上）'],'Đã đồng bộ':['Synced','同期しました'],'Đã tắt đồng bộ':['Sync turned off','同期をオフにしました'],
 'Đã sao chép link, gửi sang thiết bị kia rồi mở':['Link copied. Send it to the other device and open it.','リンクをコピーしました。別の端末に送って開いてください。'],
-'Giọng đọc':['Voices','音声'],'Giọng tiếng Việt':['Vietnamese voice','ベトナム語の声'],'Google (tự nhiên, cần mạng)':['Google (natural, needs internet)','Google（自然・ネット接続必要）'],'Giọng máy':['Device voice','端末の声'],'Tự chọn':['Auto','自動'],'Nghe thử':['Test','試聴'],'Dịch câu':['Translate sentence','文を翻訳'],'Dịch đoạn':['Translate paragraph','段落を翻訳'],'Dịch đoạn đã chọn':['Translate selection','選択部分を翻訳'],'Dịch':['Translate','翻訳'],'← Về từ':['← Back to word','← 単語に戻る'],
+'Giọng đọc':['Voices','音声'],'Google (tự nhiên)':['Google (natural)','Google（自然）'],'Tự nhiên':['Natural','自然'],'Trẻ trung':['Youthful','若々しい'],'Dễ thương':['Cute','かわいい'],'Đã chuyển sang Giọng máy để dùng kiểu giọng này':['Switched to Device voice to use this style','このスタイルを使うため端末の声に切り替えました'],
+'Kiểu Trẻ trung / Dễ thương chỉ áp dụng cho Giọng máy (nâng cao độ giọng và ưu tiên giọng nữ trẻ). Nên chọn giọng Enhanced / Premium nếu có: tiếng Nhật Kyoko, O-ren; tiếng Anh Samantha, Ava, Zoe. Tải thêm ở iPad: Cài đặt → Trợ năng → Nội dung đọc → Giọng nói.':['Youthful / Cute styles only apply to Device voice (higher pitch, young female voices preferred). Choose Enhanced / Premium voices if available: Japanese Kyoko, O-ren; English Samantha, Ava, Zoe. Download more on iPad: Settings → Accessibility → Spoken Content → Voices.','「若々しい／かわいい」は端末の声にのみ適用されます（ピッチを上げ、若い女性の声を優先）。Enhanced/Premium があれば選んでください（日本語: Kyoko, O-ren／英語: Samantha, Ava, Zoe）。iPadの設定→アクセシビリティ→読み上げコンテンツ→声で追加できます。'],'Giọng tiếng Việt':['Vietnamese voice','ベトナム語の声'],'Google (tự nhiên, cần mạng)':['Google (natural, needs internet)','Google（自然・ネット接続必要）'],'Giọng máy':['Device voice','端末の声'],'Tự chọn':['Auto','自動'],'Nghe thử':['Test','試聴'],'Dịch câu':['Translate sentence','文を翻訳'],'Dịch đoạn':['Translate paragraph','段落を翻訳'],'Dịch đoạn đã chọn':['Translate selection','選択部分を翻訳'],'Dịch':['Translate','翻訳'],'← Về từ':['← Back to word','← 単語に戻る'],
 'Giọng nghe kỳ? Chọn giọng khác ở đây (nên chọn giọng có chữ Enhanced / Premium nếu máy có; tải thêm ở Cài đặt iPad → Trợ năng → Nội dung đọc → Giọng nói).':['Voice sounds odd? Pick another one here (prefer Enhanced / Premium voices if available; download more in iPad Settings → Accessibility → Spoken Content → Voices).','声が不自然な場合はここで別の声を選んでください（Enhanced/Premium を推奨。iPad設定→アクセシビリティ→読み上げコンテンツ→声で追加できます）。'],
 'Lưu':['Save','保存'],'Thử dịch':['Test','テスト'],
 'Đang dịch…':['Translating…','翻訳中…'],'Bản dịch tự động':['Auto-translated','自動翻訳'],'Bản gốc':['Original','原文'],'Không dịch được':['Translation failed','翻訳できませんでした'],
@@ -1148,12 +1159,13 @@ function pickVoice(lang){
   if(/premium|enhanced|siri|neural|natural|online/.test(n))k+=4;if(/compact/.test(n))k-=3;
   if(lang==='en'){if(l==='en-us')k+=2;if(/samantha|daniel|karen|google us|aaron|nicky/.test(n))k+=1}
   if(lang==='ja'&&/kyoko|o-ren|otoya|google/.test(n))k+=1;
+  if((cfg.style||{})[lang]!=='natural'&&YOUNG[lang]&&YOUNG[lang].test(n))k+=3;
   if(v.localService)k+=.5;return k};
  return c.sort((x,y)=>score(y)-score(x))[0];
 }
 function speak(text,lang,rate){
  if(!text)return;
- if(useOnlineVi(lang)){speakOnline(text,'vi',null,()=>speakDevice(text,lang,rate));return}
+ if(useOnline(lang,text)){speakOnline(text,lang,null,()=>speakDevice(text,lang,rate));return}
  speakDevice(text,lang,rate);
 }
 function speakDevice(text,lang,rate){
@@ -1161,7 +1173,7 @@ function speakDevice(text,lang,rate){
  try{const L=lang||'en';speechSynthesis.cancel();
   setTimeout(()=>{const u=new SpeechSynthesisUtterance(text),v=pickVoice(L);
    if(v){u.voice=v;u.lang=v.lang}else u.lang=L==='ja'?'ja-JP':L==='vi'?'vi-VN':'en-US';
-   u.rate=rate||(L==='ja'?.9:.95);speechSynthesis.speak(u)},80)}catch{}
+   u.rate=rate||(L==='ja'?.9:.95);u.pitch=PITCH[(cfg.style||{})[L]]||1;speechSynthesis.speak(u)},80)}catch{}
 }
 const speakText=x=>x.lang==='ja'?(x.reading||x.word):x.word;
 /* ---------- dịch câu / đoạn / đoạn đã chọn ---------- */
