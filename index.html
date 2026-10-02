@@ -204,7 +204,7 @@ const FONTS={
  serif:['Georgia','Georgia,"Times New Roman",serif'],
  sans:['Hệ thống','system-ui,-apple-system,"Segoe UI",Roboto,sans-serif'],
  mono:['Đơn cách','ui-monospace,Menlo,Consolas,monospace']};
-const APP_VERSION='1.6.2';
+const APP_VERSION='1.6.3';
 const DEFAULT_CLIENT_ID='261665890535-fa8n69cifr5kpr9k0qvurku6rss3kccd.apps.googleusercontent.com';/* điền Client ID vào đây để khỏi phải nhập trên điện thoại */
 const DEF={clientId:DEFAULT_CLIENT_ID,signedIn:false,theme:'sepia',custom:{bg:'#222831',fg:'#eeeeee'},font:'bevn',size:18,lh:1.75,mg:20,align:'left',awake:false,prefetch:10,lang:'vi',autoTr:true,trUrl:''};
 let cfg=Object.assign({},DEF,LS.get('rp_cfg',{}));
@@ -260,7 +260,6 @@ const tokValid=()=>tok&&tok.exp>Date.now()+60000;
 async function waitGIS(){for(let i=0;i<40;i++){if(window.google&&google.accounts&&google.accounts.oauth2)return true;await new Promise(r=>setTimeout(r,150))}return false}
 async function requestToken(interactive){
  if(!cfg.clientId)throw new Error('Chưa có Client ID');
- if(interactive&&SEC())return codeLogin();
  if(!await waitGIS())throw new Error('Không tải được dịch vụ Google (đang offline?)');
  return new Promise((res,rej)=>{
   const c=google.accounts.oauth2.initTokenClient({client_id:cfg.clientId,scope:SCOPE,prompt:interactive?'':'none',
@@ -547,7 +546,7 @@ function vSetup(){
  hdrState={title:'Thiết lập',tools:false};
  if(!cfg.clientId)return `<div class="setup"><h2>Chào mừng 👋</h2><p style="color:var(--mut)">Để app đọc được Google Drive của bạn, cần tạo một <b>Client ID</b> (miễn phí, làm 1 lần). Xem file <code>HUONG-DAN.md</code> đi kèm – khoảng 5 phút. Sau đó dán vào đây:</p>
   <input type="text" id="cid" placeholder="xxxx.apps.googleusercontent.com"><p><button class="btn full" data-act="savecid">Tiếp tục</button></p></div>`;
- if(!cfg.signedIn&&!tokValid())return `<div class="setup"><h2>Đăng nhập Google</h2><p style="color:var(--mut)">App chỉ xin quyền chỉ đọc Drive (không sửa/xóa gì).</p><input type="password" id="sec" placeholder="Client secret (khuyên dùng, để khỏi đăng nhập lại)" autocomplete="off" value="${esc(SEC())}" style="margin-bottom:10px"><button class="btn full" data-act="signin">Đăng nhập bằng Google</button>${ui.err&&ui.err!=='auth'?`<p style="color:#d33">${esc(ui.err)}</p>`:''}${DEFAULT_CLIENT_ID?'':'<p><button class="btn alt full" data-act="resetcid">Đổi Client ID</button></p>'}</div>`;
+ if(!cfg.signedIn&&!tokValid())return `<div class="setup"><h2>Đăng nhập Google</h2><p style="color:var(--mut)">App chỉ xin quyền chỉ đọc Drive (không sửa/xóa gì).</p><button class="btn full" data-act="signin">Đăng nhập bằng Google</button>${ui.err&&ui.err!=='auth'?`<p style="color:#d33">${esc(ui.err)}</p>`:''}${DEFAULT_CLIENT_ID?'':'<p><button class="btn alt full" data-act="resetcid">Đổi Client ID</button></p>'}</div>`;
  return `<div class="setup"><h2>Chọn thư mục báo cáo</h2><p style="color:var(--mut)">Chọn thư mục chứa báo cáo. Mỗi thư mục con bên trong sẽ thành một mục riêng. Sau này có thể thêm nhiều thư mục khác trong Cài đặt.</p><button class="btn full" data-act="pick">Chọn thư mục từ Drive</button></div>`;
 }
 const PAGES={latest:vLatest,cats:vCats,saved:vSaved,vocab:vVocab,settings:vSettings};
@@ -671,7 +670,7 @@ document.addEventListener('click',async e=>{
  switch(a){
   case'back':if(navCount>0)history.back();else location.hash=cur?'#/cat/'+cur.cat:'#/latest';break;
   case'sync':if(!navigator.onLine)toast('Đang offline');else{if(!tokValid()&&cfg.signedIn)try{await getToken()}catch{}await sync()}break;
-  case'signin':try{const sv=document.getElementById('sec');if(sv&&sv.value.trim())LS.set('rp_sec',sv.value.trim());await requestToken(true);ui.err='';toast('Đã đăng nhập');route();if(hasRoots())sync();}catch(err){toast(/access_denied/.test(err.message)?'Bị từ chối: hãy thêm email của bạn vào Test users trong Google Cloud':/popup/.test(err.message)?'Cửa sổ đăng nhập bị đóng hoặc bị chặn popup':'Đăng nhập không thành công: '+err.message)}break;
+  case'signin':try{await requestToken(true);ui.err='';toast('Đã đăng nhập');route();if(hasRoots())sync();}catch(err){toast(/access_denied/.test(err.message)?'Bị từ chối: hãy thêm email của bạn vào Test users trong Google Cloud':/popup/.test(err.message)?'Cửa sổ đăng nhập bị đóng hoặc bị chặn popup':'Đăng nhập không thành công: '+err.message)}break;
   case'signout':try{if(tok)google.accounts.oauth2.revoke(tok.t)}catch{}tok=null;LS.set('rp_tok',null);RT.set(null);cfg.signedIn=false;saveCfg();route();toast('Đã đăng xuất');break;
   case'savecid':{const c=($('#cid').value||'').trim();if(!/\.apps\.googleusercontent\.com$/.test(c))return toast('Client ID không đúng dạng');cfg.clientId=c;saveCfg();route();break}
   case'resetcid':cfg.clientId='';saveCfg();route();break;
