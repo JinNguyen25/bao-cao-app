@@ -204,7 +204,7 @@ const FONTS={
  serif:['Georgia','Georgia,"Times New Roman",serif'],
  sans:['Hệ thống','system-ui,-apple-system,"Segoe UI",Roboto,sans-serif'],
  mono:['Đơn cách','ui-monospace,Menlo,Consolas,monospace']};
-const APP_VERSION='1.6.1';
+const APP_VERSION='1.6.2';
 const DEFAULT_CLIENT_ID='261665890535-fa8n69cifr5kpr9k0qvurku6rss3kccd.apps.googleusercontent.com';/* điền Client ID vào đây để khỏi phải nhập trên điện thoại */
 const DEF={clientId:DEFAULT_CLIENT_ID,signedIn:false,theme:'sepia',custom:{bg:'#222831',fg:'#eeeeee'},font:'bevn',size:18,lh:1.75,mg:20,align:'left',awake:false,prefetch:10,lang:'vi',autoTr:true,trUrl:''};
 let cfg=Object.assign({},DEF,LS.get('rp_cfg',{}));
@@ -524,9 +524,9 @@ function vSettings(){
  return `
  <div class="sec"><h3>Ngôn ngữ</h3><div class="seg">${lb('lang','vi','Tiếng Việt')}${lb('lang','en','English')}${lb('lang','ja','日本語')}</div>
   <div class="ctl"><label>Tự dịch báo cáo sang ngôn ngữ này</label><div class="seg">${lb('autoTr','true','Bật')}${lb('autoTr','false','Tắt')}</div></div>
-  <p>Dán địa chỉ Apps Script dịch (xem HUONG-DAN.md). Cần để tự dịch báo cáo.</p>
-  <input type="text" id="tru" value="${esc(cfg.trUrl)}" placeholder="https://script.google.com/macros/s/…/exec">
-  <p><button class="btn" data-act="savetr">Lưu</button><button class="btn alt" data-act="testtr">Thử dịch</button></p></div>
+  ${cfg.trUrl?`<p style="color:var(--fg)">✓ Đã kết nối dịch &nbsp;<button class="btn alt" data-act="testtr" style="padding:6px 12px;font-size:13px">Thử dịch</button> <button data-act="trreset" style="color:var(--mut);font-size:13px;margin-left:6px">Đổi</button></p>`:`<p>Dán địa chỉ Apps Script dịch (xem HUONG-DAN.md). Cần để tự dịch báo cáo.</p>
+  <input type="text" id="tru" value="" placeholder="https://script.google.com/macros/s/…/exec">
+  <p><button class="btn" data-act="savetr">Lưu</button></p>`}</div>
  <div class="sec"><h3>Giao diện đọc</h3>${appearanceHTML()}
   <div class="prev">Báo cáo ngày hôm nay: doanh thu tăng 12% so với hôm qua. Chi tiết xem ở các mục bên dưới.</div></div>
  <div class="sec"><h3>Nguồn báo cáo</h3>
@@ -538,8 +538,8 @@ function vSettings(){
  <div class="sec"><h3>Tải sẵn để đọc offline</h3>
   <div class="ctl" style="margin-top:0"><label><span>Tự tải sẵn số báo cáo mới nhất</span><span id="v-pf">${cfg.prefetch}</span></label><input type="range" min="0" max="60" step="5" value="${cfg.prefetch}" data-pf></div>
   <p><button class="btn alt" data-act="clearcache">Xóa dữ liệu đã tải</button></p></div>
- ${RT.get()&&SEC()?'':`<div class="sec"><h3>Đăng nhập lâu dài</h3>
-  <p>Dán Client secret của Client ID (Google Cloud → Clients → chọn client → Client secrets) để app tự đăng nhập, khỏi phải bấm lại mỗi giờ. Chỉ lưu trên máy này.</p><input type="password" id="sec" placeholder="GOCSPX-…" autocomplete="off"><p><button class="btn" data-act="enablelt">Bật đăng nhập lâu dài</button></p></div>`}
+ ${RT.get()&&SEC()?'':`<details class="sec"><summary style="cursor:pointer;font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:var(--mut);font-weight:600">Đăng nhập lâu dài (chưa bật)</summary>
+  <p style="margin-top:10px">Dán Client secret của Client ID (Google Cloud → Clients → chọn client → Client secrets) để app tự đăng nhập, khỏi phải bấm lại mỗi giờ. Chỉ lưu trên máy này.</p><input type="password" id="sec" placeholder="GOCSPX-…" autocomplete="off"><p><button class="btn" data-act="enablelt">Bật đăng nhập lâu dài</button></p></details>`}
  <div class="sec"><h3>Cập nhật ứng dụng</h3><div class="kv"><span>Phiên bản</span><span>${APP_VERSION}</span></div><p><button class="btn alt" data-act="chkupd">Kiểm tra cập nhật</button></p></div>
  ${DEFAULT_CLIENT_ID?'':`<div class="sec"><h3>Google Client ID</h3><input type="text" id="cid" value="${esc(cfg.clientId)}" placeholder="xxxx.apps.googleusercontent.com"><p><button class="btn alt" data-act="savecid">Lưu Client ID</button></p></div>`}`;
 }
@@ -714,8 +714,9 @@ document.addEventListener('click',async e=>{
   case'rvspeak':{const x=ui.rv&&vocab.find(y=>y.id===ui.rv.q[0]);if(x)speak(x.word,x.lang);break}
   case'rvyes':{const rv=ui.rv,x=vocab.find(y=>y.id===rv.q[0]);if(x){x.box=Math.min(x.box+1,DAYS.length-1);x.due=Date.now()+DAYS[x.box]*864e5;saveVocab()}rv.q.shift();rv.show=false;route();break}
   case'rvno':{const rv=ui.rv,x=vocab.find(y=>y.id===rv.q[0]);if(x){x.box=0;x.due=Date.now()+6e5;saveVocab()}rv.q.push(rv.q.shift());rv.show=false;route();break}
-  case'savetr':{cfg.trUrl=($('#tru').value||'').trim();saveCfg();toast('Đã lưu địa chỉ dịch');ensureNames();break}
-  case'testtr':{cfg.trUrl=($('#tru').value||'').trim();if(!cfg.trUrl)return toast('Chưa nhập địa chỉ dịch');saveCfg();try{const o=await trBatch(['Xin chào, đây là bản thử.'],cfg.lang==='vi'?'en':cfg.lang);toast(o[0])}catch(err){toast('Dịch lỗi: '+err.message)}break}
+  case'savetr':{const u=($('#tru').value||'').trim();if(!/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(u))return toast('Địa chỉ không đúng dạng');cfg.trUrl=u;saveCfg();toast('Đã lưu địa chỉ dịch');ensureNames();route();break}
+  case'trreset':cfg.trUrl='';saveCfg();route();break;
+  case'testtr':{if(!cfg.trUrl)return toast('Chưa nhập địa chỉ dịch');try{const o=await trBatch(['Xin chào, đây là bản thử.'],cfg.lang==='vi'?'en':cfg.lang);toast(o[0])}catch(err){toast('Dịch lỗi: '+err.message)}break}
   case'trtoggle':{if(!cur)break;if(!cfg.trUrl)return toast('Chưa cài dịch tự động (xem Cài đặt)');ui.showOrig=!ui.showOrig;const f=cur,c=await idb.get(f.id);
    if(ui.showOrig){if(c&&c.html!==null){$('#rbody').innerHTML=c.html;if($('#trs'))$('#trs').textContent='Bản gốc'}}else applyTranslation(f);break}
   case'chkupd':await checkUpdate(true);break;
@@ -816,6 +817,7 @@ const D={
 'Chỉ tra được từ tiếng Anh/Nhật':['Only English/Japanese words can be looked up','英語・日本語の単語のみ検索できます'],
 'Cần cài địa chỉ dịch (Apps Script) để tra từ':['Set up the translation Apps Script URL to look up words','単語検索には翻訳Apps ScriptのURL設定が必要です'],
 'Đã xóa từ':['Word removed','単語を削除しました'],'Không có từ nào cần ôn':['Nothing to review','復習する単語はありません'],'Đã lưu từ':['Word saved','単語を保存しました'],
+'Đã kết nối dịch':['Translation connected','翻訳に接続済み'],'Đổi':['Change','変更'],'Đăng nhập lâu dài (chưa bật)':['Stay signed in (not enabled)','ログイン維持（未有効）'],'Địa chỉ không đúng dạng':['Invalid URL format','URLの形式が正しくありません'],
 'Lưu':['Save','保存'],'Thử dịch':['Test','テスト'],
 'Đang dịch…':['Translating…','翻訳中…'],'Bản dịch tự động':['Auto-translated','自動翻訳'],'Bản gốc':['Original','原文'],'Không dịch được':['Translation failed','翻訳できませんでした'],
 'Xem bản gốc / bản dịch':['Toggle original / translation','原文／翻訳を切り替え'],'Chưa cài dịch tự động (xem Cài đặt)':['Auto-translation is not set up (see Settings)','自動翻訳が未設定です（設定を参照）'],
